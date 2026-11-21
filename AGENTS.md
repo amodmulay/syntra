@@ -21,8 +21,10 @@ setting (in `factory/config.json`) can pass a finished job on to another line
 - `factory/bin/pull` pulls open GitHub issues labeled `factory` into the
   inbox before each run — optional, and harmless if `gh` isn't set up.
 - Token usage: `factory/usage/ledger.jsonl` is an append-only record of
-  tokens per model; `python3 factory/bin/usage ingest` adds new calls and
-  regenerates `factory/usage/USAGE.md`. Never edit the ledger by hand.
+  tokens and API-equivalent dollars per call, per model. `factory/bin/job`
+  ingests automatically on every save; `python3 factory/bin/usage ingest`
+  does it by hand and regenerates `factory/usage/USAGE.md`. Never edit the
+  ledger by hand.
 - Checks: `factory/checks.sh` (plus whatever script other lines point to).
 - Dashboard: `cd factory && python3 -m http.server`, then open
   `http://localhost:8000/dashboard.html`.

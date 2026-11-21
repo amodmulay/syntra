@@ -159,6 +159,19 @@ def save(job):
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(job, indent=2) + "\n")
     tmp.replace(path)
+    ingest_usage()
+
+
+def ingest_usage():
+    """Copy new API calls into the committed ledger (factory/usage/ledger.jsonl).
+
+    Best effort: a failure here must never block a job.
+    """
+    try:
+        subprocess.run([sys.executable, str(FACTORY / "bin" / "usage"), "ingest"],
+                       capture_output=True, timeout=60, check=False)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def all_jobs():
@@ -351,8 +364,15 @@ def sync(job):
                 line = first_line(rd / f"review-{r}.md")
                 m = re.fullmatch(r"VERDICT:\s*(PASS|CHANGES)", line or "")
                 job["reviews"][r] = m.group(1) if m else ("pending" if line is None else "invalid")
-    job["models"] = usage_by_step(job)
-    job["cost_usd"] = round(sum(r["cost"] for r in job["models"]), 2)
+    # Usage is re-derived from transcripts that live outside the repo. Never let
+    # a sync lower what was already recorded if some of them have been deleted.
+    merged = {(r["step"], r["model"]): r for r in job.get("models") or []}
+    for r in usage_by_step(job):
+        key = (r["step"], r["model"])
+        if key not in merged or r["tokens"] >= merged[key]["tokens"]:
+            merged[key] = r
+    job["models"] = sorted(merged.values(), key=lambda r: (r["step"], r["model"]))
+    job["cost_usd"] = max(job.get("cost_usd") or 0.0, round(sum(r["cost"] for r in job["models"]), 2))
     return job
 
 

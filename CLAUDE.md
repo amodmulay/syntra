@@ -14,10 +14,12 @@ product.
   changes exist only to exercise the factory; keep them small and
   self-contained. `factory/bin/job` and `factory/checks.sh` are protected by
   the gate.
-- **Token usage:** `factory/usage/ledger.jsonl` (append-only) and
-  `factory/usage/USAGE.md` record tokens per model. Run
-  `python3 factory/bin/usage ingest` before committing to capture new
-  Claude Code transcripts; never edit the ledger by hand.
+- **Token usage:** `factory/usage/ledger.jsonl` (append-only, tokens and
+  API-equivalent dollars per call) and `factory/usage/USAGE.md` record usage
+  per model. `factory/bin/job` ingests automatically on every save; run
+  `python3 factory/bin/usage ingest` for work outside the factory. Commit
+  the ledger so it persists; never edit it by hand. Per-job, per-step
+  usage is in `job.json` (`models`) and never decreases on sync.
 
 ## The factory
 
