@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This repository contains Syntra and a minimal calculator sample used to exercise the software factory end to end. Syntra issues may update the factory itself through the same reviewed workflow. Its functions are `add(a, b)` (sum of a and b), `subtract(a, b)` (a - b), `multiply(a, b)` (product of a and b), `divide(a, b)` (a / b; raises `ZeroDivisionError` when b is 0), and `integrate(f, a, b, n=1000)` (approximates the integral of f from a to b with the trapezoidal rule over n subintervals; raises `ValueError` when n < 1).
+This repository is Syntra, a software factory. The minimal calculator sample is only a throwaway fixture for quick end-to-end tests of the factory, not the product. Syntra issues may update the factory itself through the same reviewed workflow. The calculator's functions are `add(a, b)` (sum of a and b), `subtract(a, b)` (a - b), `multiply(a, b)` (product of a and b), `divide(a, b)` (a / b; raises `ZeroDivisionError` when b is 0), and `integrate(f, a, b, n=1000)` (approximates the integral of f from a to b with the trapezoidal rule over n subintervals; raises `ValueError` when n < 1).
 
 - **Setup**: nothing to install. `src/calculator.py` and
   `tests/test_calculator.py` use only the standard library.
@@ -20,6 +20,9 @@ setting (in `factory/config.json`) can pass a finished job on to another line
 - `factory/bin/job` is the only thing allowed to write that state.
 - `factory/bin/pull` pulls open GitHub issues labeled `factory` into the
   inbox before each run — optional, and harmless if `gh` isn't set up.
+- Token usage: `factory/usage/ledger.jsonl` is an append-only record of
+  tokens per model; `python3 factory/bin/usage ingest` adds new calls and
+  regenerates `factory/usage/USAGE.md`. Never edit the ledger by hand.
 - Checks: `factory/checks.sh` (plus whatever script other lines point to).
 - Dashboard: `cd factory && python3 -m http.server`, then open
   `http://localhost:8000/dashboard.html`.

@@ -1,17 +1,23 @@
 # CLAUDE.md
 
-This project is a minimal calculator module (`src/calculator.py`:
-`add`, `subtract`, `multiply`, `divide`, `integrate`), used mainly to
-exercise the software factory below end to end.
+This project is Syntra, a repository-local software factory. The
+calculator module (`src/calculator.py`, `tests/test_calculator.py`) is only
+a throwaway fixture for quick end-to-end tests of the factory; it is not the
+product.
 
 - **Setup:** nothing to install — stdlib only.
 - **Validation:** `python3 -m py_compile src/*.py && python3 -m unittest
   discover -s tests -v` — matches `factory/checks.sh` exactly. Run this
   before calling anything done.
-- **Scope:** sample-project changes should stay small and self-contained.
-  Issues explicitly about Syntra may update the factory, its prompts,
-  configuration, documentation, and dashboard. `factory/bin/job` and
-  `factory/checks.sh` are protected by the gate.
+- **Scope:** factory work (workflow, prompts, playbooks, configuration,
+  documentation, dashboard, `factory/bin/*`) is the real work. Calculator
+  changes exist only to exercise the factory; keep them small and
+  self-contained. `factory/bin/job` and `factory/checks.sh` are protected by
+  the gate.
+- **Token usage:** `factory/usage/ledger.jsonl` (append-only) and
+  `factory/usage/USAGE.md` record tokens per model. Run
+  `python3 factory/bin/usage ingest` before committing to capture new
+  Claude Code transcripts; never edit the ledger by hand.
 
 ## The factory
 
