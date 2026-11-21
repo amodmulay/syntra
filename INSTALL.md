@@ -88,11 +88,11 @@ in a real sentence or two what this project actually is, then fill in:
 - `lines`: keep `build` and `docs`, add more only if the user asks for a
   different shape (e.g. a migration line, a design-review line) — each new
   line needs its own `checks` entry and its own `factory/playbooks/<line>.md`.
-- `protected_paths`: keep the `factory/*` and `.claude/*` entries. Don't add
-  the project's tests — real features legitimately change existing tests
-  (a new required field touches every fixture), and a protected test would
-  block a job with no way through. `reviewer-code.md` already catches a test
-  that was weakened or special-cased instead of genuinely fixed.
+- `protected_paths`: keep `factory/checks.sh` protected. This lets the factory
+  update its other scripts, prompts, config, and dashboard through reviewed
+  jobs. Treat changes to job-state transitions as high risk and require
+  security review. Do not protect project tests; reviewers must check that
+  tests were not weakened or special-cased.
 - `ports`: move `base` if the project already uses ports 5100–5199.
 - `github.issue_label`: only matters if the project wants issues labeled
   `factory` pulled into the inbox automatically (`factory/bin/pull`). Leave
@@ -102,11 +102,16 @@ in a real sentence or two what this project actually is, then fill in:
 - Leave `concurrency`, `max_rounds`, `routing`, `surface_reviewers` and
   `prices_usd_per_mtok` as shipped unless the user asks otherwise.
 
+Create the `factory` GitHub label in the target repository if it does not
+already exist. `factory/bin/pull` imports open issues with this label when the
+factory runs. GitHub CLI authentication must have permission to read issues;
+job completion may also use it to update the linked issue.
+
 **The reviewer agents.** Keep their structure, file names, and the exact
 `VERDICT:`/first-line reply format untouched; only tailor the content:
 
-- `triage.md`: replace the Syntra/sample description with what this project
-  does and which requests belong in its factory.
+- `triage.md`: replace the Syntra/sample description with what the target
+  project does and which requests belong in its factory.
 
 - `reviewer-security.md`: this project's actual exposure — its auth, its
   data-access rules, its payment and webhook paths, anywhere user input
@@ -188,7 +193,9 @@ Then tell them, briefly:
 - Anything the approver isn't sure about waits as `needs-human` — read
   `factory/jobs/<id>/<pass>/decision.md`, then reply with feedback or a
   rejection through `/factory <anything>`.
-- Triage runs on Fable once per pass; depending on their plan, that can bill
-  against usage credits rather than plan-included usage.
+- Every step currently runs on Haiku (see `model:` in `.claude/agents/*.md` and
+  `routing` in `factory/config.json`). If you switch triage to a larger model,
+  note that depending on your plan it may bill against usage credits rather
+  than plan-included usage.
 - Start with `concurrency: 1` in `factory/config.json` and read what a few
   jobs actually produce before raising it.

@@ -117,6 +117,7 @@ def report():
     out += ["", "## Limits", "",
             "- Only usage recorded in Claude Code transcripts available when `ingest` was run is included.",
             "  Work done before the ledger was started, in other tools, or in transcripts since deleted is not captured.",
+            "- Codex model/token usage is not exposed by the tools available in this workspace and is not captured.",
             "- Re-run `factory/bin/usage ingest` regularly; transcripts live outside the repo."]
     REPORT.write_text("\n".join(out) + "\n", encoding="utf8", newline="\n")
     print(f"wrote {REPORT.relative_to(ROOT)}")

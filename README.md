@@ -194,6 +194,57 @@ repository. Open GitHub issues labeled `factory` are pulled into
 issue does not start an agent session by itself. Create the `factory` label in
 GitHub once; the Factory request issue form applies it automatically.
 
+## Use Syntra in a project
+
+The current implementation runs from Claude Code in a local Git checkout. It
+uses Python 3.10+, Bash (Git Bash or WSL on Windows), Git worktrees, and the
+GitHub CLI (`gh`) for GitHub issue intake. Without `gh`, local inbox topics can
+still be processed.
+
+### Install
+
+Follow [INSTALL.md](INSTALL.md) from the target repository. The install guide
+copies the reusable factory files, then adapts the target project's checks,
+base branch, playbooks, and `AGENTS.md` or `CLAUDE.md`. It also documents the
+Git ignore entries and the `factory` GitHub label needed for issue intake.
+
+### File work and run the factory
+
+1. Create a GitHub issue using the Factory request form, or add a Markdown
+   request to `factory/inbox/`. The issue form applies the `factory` label.
+2. From the project root in Claude Code, run `/factory run`. This pulls open,
+   labeled issues into the inbox, then processes available topics through
+   triage, specification, implementation, checks, review, and approval.
+3. Review job evidence in `factory/jobs/<job-id>/`. Start the dashboard with
+   `cd factory && python3 -m http.server`, then open
+   `http://localhost:8000/dashboard.html`.
+
+Runs are manual; creating an issue does not start an agent session. Jobs work
+in separate `.worktrees/<job-id>` checkouts and land approved changes on the
+configured local base branch. The workflow does not push commits to GitHub.
+Jobs waiting for clarification or a human decision remain in the corresponding
+waiting state; provide an answer or feedback through `/factory` in Claude Code.
+
+### Update Syntra in a project
+
+For new work in the project, file or update an issue with the `factory` label
+and run `/factory run` again. To update the installed factory itself, compare
+the reusable files in the new Syntra version with the copies in the project.
+Copy the updated skills, agents, scripts, dashboard, or playbooks as needed,
+then keep the target project's `factory/config.json`, `factory/checks.sh`,
+playbooks, and repository instructions aligned with its own codebase. Review
+the diff and run the target project's documented checks before using the
+updated factory. `INSTALL.md` contains the file list and adaptation details.
+
+Syntra can also update its own factory from issues labeled `factory`. The
+deterministic `factory/checks.sh` remains protected from factory jobs; updates
+to factory scripts and agent instructions go through the normal job review.
+The append-only model usage ledger is in [factory/usage/USAGE.md](factory/usage/USAGE.md),
+with individual API calls preserved in `factory/usage/ledger.jsonl`. Run
+`python factory/bin/usage ingest` after Claude Code work sessions to add any
+available transcript usage and regenerate the report. It records Claude Code
+usage only; Codex token counts are not exposed in this workspace.
+
 ## Development Status
 
 **Early-stage project — actively evolving.**
