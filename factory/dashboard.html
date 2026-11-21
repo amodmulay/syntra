@@ -4,8 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ei software factory</title>
+<script>
+// Runs before <body> is parsed so the first paint already has the right theme.
+(function () {
+  var theme = null
+  try {
+    var saved = localStorage.getItem('syntra-factory-theme')
+    if (saved === 'light' || saved === 'dark') theme = saved
+  } catch (e) { /* storage unavailable: nothing saved */ }
+  if (theme === null) {
+    try {
+      theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+    } catch (e) { theme = 'dark' }
+  }
+  document.documentElement.setAttribute('data-theme', theme)
+})()
+</script>
 <style>
   :root {
+    color-scheme: dark;
     --bg: #14151b;
     --panel: #1a1c24;
     --card: #20222c;
@@ -19,7 +36,25 @@
     --changes: #ffb86c;
     --human: #ff5555;
     --merged: #bd93f9;
+    --scrim: rgba(5, 6, 10, .55);
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f6f7fb;
+    --panel: #fbfbfd;
+    --card: #ffffff;
+    --card-hover: #f1f3f8;
+    --line: #8a8fa1;
+    --text: #1c1e26;
+    --muted: #565b6e;
+    --faint: #6b7088;
+    --active: #0b6e8c;
+    --pass: #13692f;
+    --changes: #8a5000;
+    --human: #b71c1c;
+    --merged: #6a3fc0;
+    --scrim: rgba(20, 22, 35, .35);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
@@ -44,6 +79,15 @@
   }
   .status.error { color: var(--human); }
   .status.error .dot { background: var(--human); }
+  .head-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+  #theme-toggle {
+    font-family: var(--mono); font-size: 11px; line-height: 1; white-space: nowrap;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  #theme-toggle:hover { color: var(--text); }
+  #theme-toggle:focus-visible { outline: 2px solid var(--active); outline-offset: 2px; }
   .banner {
     margin: 12px 32px 0; padding: 10px 14px; border: 1px solid var(--human);
     border-radius: 8px; color: var(--human); font-family: var(--mono); font-size: 12px;
@@ -141,7 +185,7 @@
 
   /* Drawer */
   .scrim {
-    position: fixed; inset: 0; background: rgba(5, 6, 10, .55);
+    position: fixed; inset: 0; background: var(--scrim);
     opacity: 0; pointer-events: none; transition: opacity .2s;
   }
   .drawer {
@@ -254,7 +298,10 @@
 <body>
 <header>
   <h1>ei software factory</h1>
-  <div class="status" id="status">connecting…</div>
+  <div class="head-tools">
+    <div class="status" id="status">connecting…</div>
+    <button id="theme-toggle" type="button" aria-label="Switch to light theme" title="Switch to light theme">Light</button>
+  </div>
 </header>
 <div id="banner"></div>
 <main class="board" id="board"></main>
@@ -692,6 +739,49 @@ function markdown(src) {
     html += `<p>${inline(para.join(' '))}</p>`
   }
   return html
+}
+
+// ---- Theme ---------------------------------------------------------------
+
+const THEME_KEY = 'syntra-factory-theme'
+let userChose = false // set by a toggle click this page session
+
+// Saved value, or null when nothing valid is saved or storage is unavailable.
+function savedTheme() {
+  try {
+    const v = localStorage.getItem(THEME_KEY)
+    return v === 'light' || v === 'dark' ? v : null
+  } catch { return null }
+}
+
+// Sets data-theme and keeps the toggle's label and aria-label in step with it.
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme)
+  const next = theme === 'dark' ? 'light' : 'dark'
+  const btn = $('theme-toggle')
+  btn.textContent = next === 'light' ? 'Light' : 'Dark'
+  btn.setAttribute('aria-label', `Switch to ${next} theme`)
+  btn.title = `Switch to ${next} theme`
+}
+
+applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark')
+
+$('theme-toggle').addEventListener('click', () => {
+  userChose = true
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light'
+  try { localStorage.setItem(THEME_KEY, next) } catch { /* storage unavailable: session only */ }
+  applyTheme(next)
+})
+
+// Follow the OS only while the user has made no choice (saved or clicked).
+const lightQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null
+const onOsThemeChange = (e) => {
+  if (userChose || savedTheme() !== null) return
+  applyTheme(e.matches ? 'light' : 'dark')
+}
+if (lightQuery) {
+  if (lightQuery.addEventListener) lightQuery.addEventListener('change', onOsThemeChange)
+  else if (lightQuery.addListener) lightQuery.addListener(onOsThemeChange)
 }
 
 poll()
