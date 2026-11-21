@@ -1,0 +1,44 @@
+{
+  "id": "002-add-a-multiply-function",
+  "topic": "add-a-multiply-function",
+  "title": "Add a multiply function",
+  "stage": "merged",
+  "line": "docs",
+  "pass": 2,
+  "passes": [
+    {
+      "pass": 1,
+      "line": "build",
+      "outcome": "handed off to docs"
+    },
+    {
+      "pass": 2,
+      "line": "docs",
+      "outcome": "merged"
+    }
+  ],
+  "handoff_to": "docs",
+  "branch": "factory/002-add-a-multiply-function",
+  "worktree": "/home/amod/dev/ei-software-factory-v2/.worktrees/002-add-a-multiply-function",
+  "round": 1,
+  "round_limit": 3,
+  "triage": {
+    "decision": "ACCEPT",
+    "line": "build",
+    "rescoped": false,
+    "risk": "low",
+    "surfaces": []
+  },
+  "agents": {
+    "reviewers": {
+      "code": "haiku"
+    }
+  },
+  "gate": "PASS",
+  "reviews": {
+    "code": "PASS"
+  },
+  "cost_usd": 0.6,
+  "started": "2026-11-20T07:02:12Z",
+  "ended": "2026-11-20T07:06:25Z"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "004-add-a-divide-function",
+  "topic": "add-a-divide-function",
+  "title": "Add a divide function",
+  "stage": "merged",
+  "line": "docs",
+  "pass": 2,
+  "passes": [
+    {
+      "pass": 1,
+      "line": "build",
+      "outcome": "handed off to docs"
+    },
+    {
+      "pass": 2,
+      "line": "docs",
+      "outcome": "merged"
+    }
+  ],
+  "handoff_to": "docs",
+  "branch": "factory/004-add-a-divide-function",
+  "worktree": "/home/amod/dev/ei-software-factory-v2/.worktrees/004-add-a-divide-function",
+  "round": 1,
+  "round_limit": 3,
+  "triage": {
+    "decision": "ACCEPT",
+    "line": "build",
+    "rescoped": false,
+    "risk": "low",
+    "surfaces": []
+  },
+  "agents": {
+    "reviewers": {
+      "code": "haiku"
+    }
+  },
+  "gate": "PASS",
+  "reviews": {
+    "code": "PASS"
+  },
+  "cost_usd": 0.62,
+  "started": "2026-11-20T08:05:51Z",
+  "ended": "2026-11-20T08:09:58Z"
+}

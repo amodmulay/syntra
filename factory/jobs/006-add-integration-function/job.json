@@ -1,0 +1,44 @@
+{
+  "id": "006-add-integration-function",
+  "topic": "add-integration-function",
+  "title": "Add Integration function",
+  "stage": "merged",
+  "line": "docs",
+  "pass": 2,
+  "passes": [
+    {
+      "pass": 1,
+      "line": "build",
+      "outcome": "handed off to docs"
+    },
+    {
+      "pass": 2,
+      "line": "docs",
+      "outcome": "merged"
+    }
+  ],
+  "handoff_to": "docs",
+  "branch": "factory/006-add-integration-function",
+  "worktree": "/home/amod/dev/ei-software-factory-v2/.worktrees/006-add-integration-function",
+  "round": 2,
+  "round_limit": 3,
+  "triage": {
+    "decision": "ACCEPT",
+    "line": "build",
+    "rescoped": true,
+    "risk": "low",
+    "surfaces": []
+  },
+  "agents": {
+    "reviewers": {
+      "code": "haiku"
+    }
+  },
+  "gate": "PASS",
+  "reviews": {
+    "code": "PASS"
+  },
+  "cost_usd": 0.78,
+  "started": "2026-11-20T08:46:37Z",
+  "ended": "2026-11-20T08:54:33Z"
+}

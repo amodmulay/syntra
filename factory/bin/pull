@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Pull open GitHub issues labeled `factory` into the inbox.
+
+Usage: pull
+
+For every open issue on this repo's GitHub remote carrying config.json's
+`github.issue_label`, writes factory/inbox/<slug>.md — the issue's title as
+its heading, its body underneath, marked on its first line with
+`<!-- factory-issue: N -->`. An issue not seen before gets a new file; one
+already pulled gets its file rewritten in place, same filename, if the
+issue's title or body has changed since — the slug never changes on an
+update, so a job already created for that topic still resolves to the same
+file. Prints one line per topic it creates or updates; nothing printed means
+nothing changed.
+
+This step is optional and non-fatal: if `gh` isn't installed, isn't
+authenticated, or this repo has no GitHub remote, it says so on stderr and
+exits 0 rather than blocking a run that only uses locally-filed topics.
+"""
+
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+FACTORY = Path(__file__).resolve().parents[1]
+INBOX = FACTORY / "inbox"
+CONFIG = json.loads((FACTORY / "config.json").read_text())
+LABEL = CONFIG.get("github", {}).get("issue_label", "factory")
+MARKER = re.compile(r"<!--\s*factory-issue:\s*(\d+)\s*-->")
+
+
+def note(msg):
+    print(f"pull: {msg}", file=sys.stderr)
+
+
+def gh_issues():
+    try:
+        res = subprocess.run(
+            ["gh", "issue", "list", "--label", LABEL, "--state", "open",
+             "--limit", "200", "--json", "number,title,body"],
+            capture_output=True, text=True,
+        )
+    except FileNotFoundError:
+        note("gh isn't installed — skipping, working only from what's already in the inbox")
+        return None
+    if res.returncode != 0:
+        note(f"gh issue list failed, skipping: {(res.stderr or res.stdout).strip()}")
+        return None
+    return json.loads(res.stdout)
+
+
+def already_pulled():
+    """Issue number -> inbox file, for every issue already pulled in."""
+    seen = {}
+    if not INBOX.exists():
+        return seen
+    for path in INBOX.glob("*.md"):
+        m = MARKER.match(path.read_text().split("\n", 1)[0])
+        if m:
+            seen[int(m.group(1))] = path
+    return seen
+
+
+def slugify(title):
+    words = re.findall(r"[a-z0-9]+", title.lower())[:5]
+    return "-".join(words) or "issue"
+
+
+def render(issue):
+    return (
+        f"<!-- factory-issue: {issue['number']} -->\n"
+        f"# {issue['title']}\n\n"
+        f"{(issue['body'] or '').strip()}\n"
+    )
+
+
+def main():
+    issues = gh_issues()
+    if issues is None:
+        return
+    INBOX.mkdir(parents=True, exist_ok=True)
+    seen = already_pulled()
+    changed_any = False
+    for issue in sorted(issues, key=lambda i: i["number"]):
+        text = render(issue)
+        if issue["number"] in seen:
+            path = seen[issue["number"]]
+            if path.read_text() == text:
+                continue
+            path.write_text(text)
+            print(f"{path.stem}\tissue #{issue['number']} (updated)")
+            changed_any = True
+            continue
+        slug = slugify(issue["title"])
+        path = INBOX / f"{slug}.md"
+        if path.exists():  # title collides with an unrelated, already-filed topic
+            slug = f"{slug}-{issue['number']}"
+            path = INBOX / f"{slug}.md"
+        path.write_text(text)
+        print(f"{slug}\tissue #{issue['number']}")
+        changed_any = True
+    if not changed_any:
+        note("nothing new to pull")
+
+
+if __name__ == "__main__":
+    main()

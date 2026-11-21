@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Turn triage's risk/surfaces call into the job's actual reviewer lineup.
+
+Usage: route <job-id>
+
+Pulls `risk` and `surfaces` out of triage.md (via job.json), looks each up in
+config.json's `routing` and `surface_reviewers` tables, and saves the result
+back through `job agents`. Prints the resulting reviewer set.
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+FACTORY = Path(__file__).resolve().parents[1]
+CONFIG = json.loads((FACTORY / "config.json").read_text())
+
+
+def die(msg):
+    print(f"route: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def main(argv):
+    if len(argv) != 1:
+        die("usage: route <job-id>")
+    job_id = argv[0]
+    job_bin = str(FACTORY / "bin" / "job")
+    res = subprocess.run([job_bin, "sync", job_id], capture_output=True, text=True)
+    if res.returncode != 0:
+        die(res.stderr.strip())
+    job = json.loads((FACTORY / "jobs" / job_id / "job.json").read_text())
+    triage = job["triage"] or die(f"{job_id} has no triage.md")
+    risk = CONFIG["routing"].get(triage["risk"]) or die(
+        f"risk {triage['risk']!r} isn't in config.json routing ({', '.join(CONFIG['routing'])})")
+    reviewers = dict(risk)
+    for surface in triage["surfaces"]:
+        extra = CONFIG["surface_reviewers"].get(surface)
+        if extra is None:
+            die(f"surface {surface!r} isn't in config.json surface_reviewers ({', '.join(CONFIG['surface_reviewers'])})")
+        reviewers.update(extra)
+    agents = {"reviewers": reviewers}
+    res = subprocess.run([job_bin, "agents", job_id, json.dumps(agents)], capture_output=True, text=True)
+    if res.returncode != 0:
+        die(res.stderr.strip())
+    print(f"{job_id}: line {triage['line']}, reviewers " + ", ".join(f"{k} {v}" for k, v in reviewers.items()))
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

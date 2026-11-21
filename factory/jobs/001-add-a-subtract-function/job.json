@@ -1,0 +1,44 @@
+{
+  "id": "001-add-a-subtract-function",
+  "topic": "add-a-subtract-function",
+  "title": "Add a subtract function",
+  "stage": "merged",
+  "line": "docs",
+  "pass": 2,
+  "passes": [
+    {
+      "pass": 1,
+      "line": "build",
+      "outcome": "handed off to docs"
+    },
+    {
+      "pass": 2,
+      "line": "docs",
+      "outcome": "merged"
+    }
+  ],
+  "handoff_to": "docs",
+  "branch": "factory/001-add-a-subtract-function",
+  "worktree": "/home/amod/dev/ei-software-factory-v2/.worktrees/001-add-a-subtract-function",
+  "round": 1,
+  "round_limit": 3,
+  "triage": {
+    "decision": "ACCEPT",
+    "line": "build",
+    "rescoped": false,
+    "risk": "low",
+    "surfaces": []
+  },
+  "agents": {
+    "reviewers": {
+      "code": "haiku"
+    }
+  },
+  "gate": "PASS",
+  "reviews": {
+    "code": "PASS"
+  },
+  "cost_usd": 0.68,
+  "started": "2026-11-20T00:03:26Z",
+  "ended": "2026-11-20T00:09:17Z"
+}

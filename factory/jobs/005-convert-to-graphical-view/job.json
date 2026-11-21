@@ -1,0 +1,27 @@
+{
+  "id": "005-convert-to-graphical-view",
+  "topic": "convert-to-graphical-view",
+  "title": "Convert to graphical view",
+  "stage": "rejected",
+  "line": null,
+  "pass": 0,
+  "passes": [],
+  "handoff_to": null,
+  "branch": "factory/005-convert-to-graphical-view",
+  "worktree": "/home/amod/dev/ei-software-factory-v2/.worktrees/005-convert-to-graphical-view",
+  "round": 0,
+  "round_limit": 3,
+  "triage": {
+    "decision": "REJECT",
+    "line": "build",
+    "rescoped": false,
+    "risk": "low",
+    "surfaces": []
+  },
+  "agents": null,
+  "gate": null,
+  "reviews": {},
+  "cost_usd": 0.06,
+  "started": "2026-11-20T08:37:01Z",
+  "ended": "2026-11-20T08:37:25Z"
+}

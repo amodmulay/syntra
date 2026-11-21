@@ -1,0 +1,27 @@
+{
+  "id": "003-add-an-addition-function",
+  "topic": "add-an-addition-function",
+  "title": "Add an addition function",
+  "stage": "rejected",
+  "line": null,
+  "pass": 0,
+  "passes": [],
+  "handoff_to": null,
+  "branch": "factory/003-add-an-addition-function",
+  "worktree": "/home/amod/dev/ei-software-factory-v2/.worktrees/003-add-an-addition-function",
+  "round": 0,
+  "round_limit": 3,
+  "triage": {
+    "decision": "REJECT",
+    "line": "build",
+    "rescoped": false,
+    "risk": "low",
+    "surfaces": []
+  },
+  "agents": null,
+  "gate": null,
+  "reviews": {},
+  "cost_usd": 0.06,
+  "started": "2026-11-20T08:04:19Z",
+  "ended": "2026-11-20T08:04:38Z"
+}
