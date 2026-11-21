@@ -185,6 +185,15 @@ It uses configurable factory lines, local job state, Git worktrees, GitHub issue
 
 Syntra takes this foundation as a starting point for a broader platform. The direction is to move from a repository-level workflow into a reusable system for managing projects, agents, workflows, context, tools and execution across the engineering lifecycle.
 
+The current repository is also Syntra's integration sample: a small calculator
+module exercises intake, isolated worktrees, checks, review, approval, and the
+documentation handoff. The `/factory` skill and role agents live under
+`.claude/`; `INSTALL.md` describes adapting the reusable factory to another
+repository. Open GitHub issues labeled `factory` are pulled into
+`factory/inbox/` when `/factory run` starts. Runs are manual and local, so an
+issue does not start an agent session by itself. Create the `factory` label in
+GitHub once; the Factory request issue form applies it automatically.
+
 ## Development Status
 
 **Early-stage project — actively evolving.**

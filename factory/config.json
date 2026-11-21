@@ -25,8 +25,7 @@
     "security": { "security": "opus" }
   },
   "protected_paths": [
-    "factory/*",
-    ".claude/*"
+    "factory/checks.sh"
   ],
   "ports": { "base": 5100, "step": 10 },
   "prices_usd_per_mtok": {

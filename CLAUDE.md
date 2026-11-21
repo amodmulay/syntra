@@ -8,10 +8,10 @@ exercise the software factory below end to end.
 - **Validation:** `python3 -m py_compile src/*.py && python3 -m unittest
   discover -s tests -v` — matches `factory/checks.sh` exactly. Run this
   before calling anything done.
-- **Scope:** keep changes to `src/` and `tests/` small and self-contained,
-  matching the existing functions' style. Treat `factory/*` and
-  `.claude/*` as off-limits unless the task is explicitly about the
-  factory itself.
+- **Scope:** sample-project changes should stay small and self-contained.
+  Issues explicitly about Syntra may update the factory, its prompts,
+  configuration, documentation, and dashboard. `factory/bin/job` and
+  `factory/checks.sh` are protected by the gate.
 
 ## The factory
 

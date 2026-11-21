@@ -18,8 +18,8 @@ Stop and tell the user if any of these aren't true:
 - It's a git repository with at least one commit on its default branch (a
   job's worktree branches from that commit; `factory/checks.sh` gets
   verified against it in step 3).
-- `claude --version` is recent enough to run a Fable subagent (triage runs on
-  `model: fable`).
+- Claude Code is installed and supports project skills and subagents.
+- Bash is available (`Git Bash` or `WSL` on Windows); job gates run through Bash.
 - `python3 --version` is 3.10 or later — the scripts use only the standard
   library, nothing else.
 - None of the paths in step 1 already exist in the target. If one does, show
@@ -104,6 +104,9 @@ in a real sentence or two what this project actually is, then fill in:
 
 **The reviewer agents.** Keep their structure, file names, and the exact
 `VERDICT:`/first-line reply format untouched; only tailor the content:
+
+- `triage.md`: replace the Syntra/sample description with what this project
+  does and which requests belong in its factory.
 
 - `reviewer-security.md`: this project's actual exposure — its auth, its
   data-access rules, its payment and webhook paths, anywhere user input

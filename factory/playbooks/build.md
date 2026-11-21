@@ -8,12 +8,10 @@ must escalate.
 
 ## What belongs on this line
 
-<!-- Replace with the real shape of this project once there is one, e.g.:
-     "Application code under src/, its tests, and the public API it exposes." -->
-
-Any topic asking for a working code change: new behavior, a bug fix, a
-refactor, performance work — anything that ends with the codebase doing
-something it didn't do before, verified by `factory/checks.sh`.
+Working changes to Syntra's factory scripts, configuration, dashboard,
+playbooks and Claude Code agents, plus changes to the calculator sample in
+`src/` and `tests/`. Keep each topic scoped to one behavior and verify it
+with `factory/checks.sh`.
 
 ## What doesn't belong here
 
@@ -25,9 +23,6 @@ something it didn't do before, verified by `factory/checks.sh`.
 
 ## Always escalate (in addition to the global list)
 
-<!-- Add anything specific to this project's codebase: its auth module, its
-     payment integration, its data-access layer, wherever a mistake is
-     expensive or hard to undo. -->
-
-Nothing project-specific yet — tailor this once there's a real codebase to
-reason about.
+Changes to job state transitions are high impact: include focused validation
+and request security review. Never edit runtime state files under
+`factory/jobs/` directly.

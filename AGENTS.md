@@ -1,7 +1,6 @@
 # AGENTS.md
 
-This project is a minimal calculator module, used mainly to exercise the
-software factory below end to end. Its functions are `add(a, b)` (sum of a and b), `subtract(a, b)` (a - b), `multiply(a, b)` (product of a and b), `divide(a, b)` (a / b; raises `ZeroDivisionError` when b is 0), and `integrate(f, a, b, n=1000)` (approximates the integral of f from a to b with the trapezoidal rule over n subintervals; raises `ValueError` when n < 1).
+This repository contains Syntra and a minimal calculator sample used to exercise the software factory end to end. Syntra issues may update the factory itself through the same reviewed workflow. Its functions are `add(a, b)` (sum of a and b), `subtract(a, b)` (a - b), `multiply(a, b)` (product of a and b), `divide(a, b)` (a / b; raises `ZeroDivisionError` when b is 0), and `integrate(f, a, b, n=1000)` (approximates the integral of f from a to b with the trapezoidal rule over n subintervals; raises `ValueError` when n < 1).
 
 - **Setup**: nothing to install. `src/calculator.py` and
   `tests/test_calculator.py` use only the standard library.
@@ -13,7 +12,7 @@ software factory below end to end. Its functions are `add(a, b)` (sum of a and b
 
 `/factory run` works through whatever's filed in `factory/inbox/`, one job
 per topic, carrying each through triage → spec → build → gate → review →
-approve and landing approved work on the base branch. A line's `handoff`
+approve and landing approved work on the base branch. Issues may update Syntra itself; `factory/checks.sh` remains gate-protected. A line's `handoff`
 setting (in `factory/config.json`) can pass a finished job on to another line
 — `build` handing to `docs`, for instance — before it's actually done.
 

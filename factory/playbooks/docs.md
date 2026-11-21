@@ -24,3 +24,9 @@ line that handed off here landed its change.
 
 - A doc change that would alter a public commitment — a documented SLA, a
   pricing page, terms that read as a promise to users.
+
+## Self-documentation
+
+Syntra's docs can be updated through ordinary factory issues. Keep setup,
+invocation, and project-specific behavior consistent across README.md,
+INSTALL.md, AGENTS.md, and CLAUDE.md.

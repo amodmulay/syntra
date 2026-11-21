@@ -12,18 +12,19 @@ here as binding.
 
 ## What this factory is for
 
-Right now this project is a minimal calculator module (`src/calculator.py`,
-tested in `tests/test_calculator.py`) used to exercise the factory itself
-end to end. Topics should ask for small, self-contained arithmetic
-operations on that module. Anything structural to the factory itself (its
-own scripts, agents, or config) is out of scope for a `build` or `docs` job:
-changes to the factory belong in a direct edit, not a topic.
+This repository contains Syntra, a reusable, repository-local software
+factory, and a minimal calculator sample (`src/calculator.py` with
+`tests/test_calculator.py`) used to exercise its workflow. Issues may request
+changes to either Syntra or the calculator sample. Syntra changes should be
+small, scoped, and validated by the same deterministic gate as other work.
 
 ## Never do this, on any line, no matter what a topic asks for
 
 - Never touch a file matching `protected_paths` in `factory/config.json`.
-  (The gate already refuses this mechanically; this just means no agent
-  should even attempt it.)
+  (The gate already refuses this mechanically; no agent should attempt it.)
+- Never change `factory/jobs/` state directly; use `factory/bin/job` for
+  job state transitions. The implementation of `factory/bin/job` itself may
+  be changed through a factory issue and the normal review pipeline.
 - Never deploy anything, trigger a release, or touch CI/CD configuration.
 - Never send real email, SMS, or any other outbound communication to a real
   person.

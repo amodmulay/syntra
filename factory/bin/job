@@ -28,7 +28,6 @@ marker and closes the issue, best-effort, once the job has no further line to
 run — see `github_issue` below.
 """
 
-import fcntl
 import json
 import os
 import re
@@ -36,6 +35,11 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # Windows
+    import msvcrt
 
 REPO = Path(__file__).resolve().parents[2]
 FACTORY = REPO / "factory"
@@ -137,8 +141,16 @@ def load(job_id):
     if not path.exists():
         die(f"no job {job_id}")
     if job_id not in _locks:
-        _locks[job_id] = open(job_dir(job_id) / ".lock", "w")
-        fcntl.flock(_locks[job_id], fcntl.LOCK_EX)
+        lock = open(job_dir(job_id) / ".lock", "a+")
+        if "fcntl" in globals():
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        else:
+            lock.seek(0)
+            lock.write("\0")
+            lock.flush()
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+        _locks[job_id] = lock
     return json.loads(path.read_text())
 
 

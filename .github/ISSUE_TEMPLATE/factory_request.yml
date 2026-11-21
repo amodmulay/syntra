@@ -1,0 +1,38 @@
+name: Factory request
+description: Request a small change to Syntra or its calculator sample.
+title: "[Factory] "
+labels:
+  - factory
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Requests labeled `factory` are imported when `/factory run` starts.
+        Runs are manual; opening an issue does not start an agent session.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or goal
+      description: What should change, and why?
+      placeholder: Describe the desired outcome.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How should we tell the change is complete?
+      placeholder: List observable results or examples.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Syntra factory
+        - Calculator sample
+        - Documentation
+        - Not sure
+    validations:
+      required: true
