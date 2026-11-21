@@ -14,11 +14,18 @@ matching `/` too). New files are unaffected.
 """
 
 import fnmatch
+import shutil
+import functools
 import json
+import pathlib
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+# Windows defaults to a legacy code page; every file the factory touches is UTF-8.
+pathlib.Path.read_text = functools.partialmethod(pathlib.Path.read_text, encoding="utf-8")
+pathlib.Path.write_text = functools.partialmethod(pathlib.Path.write_text, encoding="utf-8")
 
 REPO = Path(__file__).resolve().parents[2]
 FACTORY = REPO / "factory"
@@ -33,7 +40,7 @@ def die(msg):
 
 
 def git(worktree, *args):
-    res = subprocess.run(["git", *args], cwd=worktree, capture_output=True, text=True)
+    res = subprocess.run(["git", *args], cwd=worktree, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if res.returncode != 0:
         die(f"`git {' '.join(args)}` failed: {res.stderr.strip()}")
     return res.stdout
@@ -64,7 +71,7 @@ def protected_changes(worktree):
 
 def run_checks(worktree, script):
     start = time.monotonic()
-    res = subprocess.run(["bash", str(script)], cwd=worktree, capture_output=True, text=True)
+    res = subprocess.run([shutil.which("bash") or "bash", Path(script).as_posix()], cwd=worktree, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return res.returncode, res.stdout + res.stderr, int(time.monotonic() - start)
 
 
@@ -105,7 +112,7 @@ def hook():
     event = json.load(sys.stdin)
     if event.get("stop_hook_active"):
         sys.exit(0)  # one nudge per stop; the gate decides
-    with open(Path(event["agent_transcript_path"]).expanduser()) as f:
+    with open(Path(event["agent_transcript_path"]).expanduser(), encoding="utf-8", errors="replace") as f:
         content = json.loads(f.readline())["message"]["content"]
     prompt = content if isinstance(content, str) else " ".join(b.get("text", "") for b in content)
     job_id = prompt.split("Job: ", 1)[1].split(".", 1)[0]

@@ -8,10 +8,16 @@ config.json's `routing` and `surface_reviewers` tables, and saves the result
 back through `job agents`. Prints the resulting reviewer set.
 """
 
+import functools
 import json
+import pathlib
 import subprocess
 import sys
 from pathlib import Path
+
+# Windows defaults to a legacy code page; every file the factory touches is UTF-8.
+pathlib.Path.read_text = functools.partialmethod(pathlib.Path.read_text, encoding="utf-8")
+pathlib.Path.write_text = functools.partialmethod(pathlib.Path.write_text, encoding="utf-8")
 
 FACTORY = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((FACTORY / "config.json").read_text())
@@ -27,7 +33,7 @@ def main(argv):
         die("usage: route <job-id>")
     job_id = argv[0]
     job_bin = str(FACTORY / "bin" / "job")
-    res = subprocess.run([job_bin, "sync", job_id], capture_output=True, text=True)
+    res = subprocess.run([sys.executable, job_bin, "sync", job_id], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if res.returncode != 0:
         die(res.stderr.strip())
     job = json.loads((FACTORY / "jobs" / job_id / "job.json").read_text())
@@ -41,7 +47,7 @@ def main(argv):
             die(f"surface {surface!r} isn't in config.json surface_reviewers ({', '.join(CONFIG['surface_reviewers'])})")
         reviewers.update(extra)
     agents = {"reviewers": reviewers}
-    res = subprocess.run([job_bin, "agents", job_id, json.dumps(agents)], capture_output=True, text=True)
+    res = subprocess.run([sys.executable, job_bin, "agents", job_id, json.dumps(agents)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if res.returncode != 0:
         die(res.stderr.strip())
     print(f"{job_id}: line {triage['line']}, reviewers " + ", ".join(f"{k} {v}" for k, v in reviewers.items()))

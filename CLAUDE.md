@@ -33,8 +33,9 @@ landing approved work on the base branch or handing it to another line
   writes it.
 - Checks: `factory/checks.sh`.
 - Boundaries: `factory/playbooks/_global.md` and one per line.
-- Dashboard: `cd factory && python3 -m http.server`, then
-  `http://localhost:8000/dashboard.html`.
+- Dashboard: `/factory run` starts it automatically (`factory/bin/dashboard`,
+  localhost only, port from `dashboard.port` in `factory/config.json`) and
+  prints the URL; run `python3 factory/bin/dashboard` to start it by hand.
 
 Full detail lives in [AGENTS.md](AGENTS.md) (the file every factory agent
 reads first — keep the two in sync if either changes), with the complete

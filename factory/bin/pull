@@ -13,16 +13,25 @@ update, so a job already created for that topic still resolves to the same
 file. Prints one line per topic it creates or updates; nothing printed means
 nothing changed.
 
-This step is optional and non-fatal: if `gh` isn't installed, isn't
-authenticated, or this repo has no GitHub remote, it says so on stderr and
-exits 0 rather than blocking a run that only uses locally-filed topics.
+GitHub issues are the default intake. This step is non-fatal: if `gh` isn't
+installed, isn't authenticated, or this repo has no GitHub remote, it prints
+a "GITHUB SETUP NEEDED" message on stderr with the steps the user must take,
+and exits 0 so a run can still work through locally-filed topics. Other
+trackers (Jira and so on) are not supported yet; files placed in
+factory/inbox/ work with any source.
 """
 
+import functools
 import json
+import pathlib
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+# Windows defaults to a legacy code page; every file the factory touches is UTF-8.
+pathlib.Path.read_text = functools.partialmethod(pathlib.Path.read_text, encoding="utf-8")
+pathlib.Path.write_text = functools.partialmethod(pathlib.Path.write_text, encoding="utf-8")
 
 FACTORY = Path(__file__).resolve().parents[1]
 INBOX = FACTORY / "inbox"
@@ -35,18 +44,41 @@ def note(msg):
     print(f"pull: {msg}", file=sys.stderr)
 
 
+def setup_needed(problem, steps):
+    """GitHub is the default intake, so say exactly what the user must set up.
+
+    Never fatal: the run continues with whatever is already in the inbox.
+    """
+    note(f"GITHUB SETUP NEEDED: {problem}")
+    for i, step in enumerate(steps, 1):
+        note(f"  {i}. {step}")
+    note("  Meanwhile the run continues with the topics already in factory/inbox/.")
+
+
 def gh_issues():
     try:
         res = subprocess.run(
             ["gh", "issue", "list", "--label", LABEL, "--state", "open",
              "--limit", "200", "--json", "number,title,body"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
     except FileNotFoundError:
-        note("gh isn't installed — skipping, working only from what's already in the inbox")
+        setup_needed("the GitHub CLI (gh) isn't installed, so issues can't be fetched.",
+                     ["Install it from https://cli.github.com/",
+                      "Run: gh auth login",
+                      f"Create the label once: gh label create {LABEL}"])
         return None
     if res.returncode != 0:
-        note(f"gh issue list failed, skipping: {(res.stderr or res.stdout).strip()}")
+        err = (res.stderr or res.stdout).strip()
+        low = err.lower()
+        if "auth" in low or "log in" in low or "login" in low or "token" in low:
+            setup_needed("the GitHub CLI isn't signed in.", ["Run: gh auth login"])
+        elif "remote" in low or "repository" in low or "not a git repository" in low:
+            setup_needed("this folder isn't linked to a GitHub repository.",
+                         ["Add the remote: git remote add origin https://github.com/<owner>/<repo>.git",
+                          "Or pick one: gh repo set-default <owner>/<repo>"])
+        else:
+            setup_needed("`gh issue list` failed.", [f"Fix this error, then run /factory run again: {err}"])
         return None
     return json.loads(res.stdout)
 

@@ -175,15 +175,9 @@ Specific technology choices will be documented as the implementation takes shape
 
 ## Current Foundation
 
-Syntra builds on ideas and practical experimentation from an earlier software-factory prototype:
+Syntra today is a manually triggered, repository-local engineering pipeline. Requests enter an inbox, an agent triages them, and accepted work moves through specification, implementation, deterministic checks, specialist reviews and approval. It uses configurable factory lines, local job state, Git worktrees, GitHub issue intake and a lightweight dashboard.
 
-[ei-software-factory-v2](https://github.com/amodmulay-ltts/ei-software-factory-v2)
-
-That prototype explores a manually triggered, repository-local engineering pipeline. Requests enter an inbox, an agent triages them, and accepted work moves through specification, implementation, deterministic checks, specialist reviews and approval.
-
-It uses configurable factory lines, local job state, Git worktrees, GitHub issue intake and a lightweight dashboard.
-
-Syntra takes this foundation as a starting point for a broader platform. The direction is to move from a repository-level workflow into a reusable system for managing projects, agents, workflows, context, tools and execution across the engineering lifecycle.
+The direction is to grow this repository-level workflow into a reusable system for managing projects, agents, workflows, context, tools and execution across the engineering lifecycle.
 
 The current repository is also Syntra's integration sample: a small calculator
 module exercises intake, isolated worktrees, checks, review, approval, and the
@@ -201,6 +195,9 @@ uses Python 3.10+, Bash (Git Bash or WSL on Windows), Git worktrees, and the
 GitHub CLI (`gh`) for GitHub issue intake. Without `gh`, local inbox topics can
 still be processed.
 
+New here? [GETTING_STARTED.md](GETTING_STARTED.md) is the practical guide:
+the concept, setup, running the factory, and viewing runs.
+
 ### Install
 
 Follow [INSTALL.md](INSTALL.md) from the target repository. The install guide
@@ -215,9 +212,10 @@ Git ignore entries and the `factory` GitHub label needed for issue intake.
 2. From the project root in Claude Code, run `/factory run`. This pulls open,
    labeled issues into the inbox, then processes available topics through
    triage, specification, implementation, checks, review, and approval.
-3. Review job evidence in `factory/jobs/<job-id>/`. Start the dashboard with
-   `cd factory && python3 -m http.server`, then open
-   `http://localhost:8000/dashboard.html`.
+3. Review job evidence in `factory/jobs/<job-id>/`. The dashboard
+   starts automatically with `/factory run` and the run prints its URL
+   (normally `http://localhost:8000/dashboard.html`); to start it by hand run
+   `python3 factory/bin/dashboard`.
 
 Runs are manual; creating an issue does not start an agent session. Jobs work
 in separate `.worktrees/<job-id>` checkouts and land approved changes on the

@@ -195,16 +195,3 @@ release could change it out from under this.
 - One branch per job (a new one each time a handoff starts a fresh line),
   and at most `max_rounds` build-review rounds per pass before a human gets
   pulled in.
-
-## Where this design came from
-
-The shape of this pipeline — triage, then route, then spec, build, gate,
-review, approve, with files as the only state and small scripts as the only
-things allowed to mutate it — started from studying ZazenCodes'
-[software-factory-claude-code-v2](https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code-v2)
-as a reference for what a Claude-Code-driven software factory can look like.
-This implementation reworks that shape around a different queue (a local
-inbox instead of GitHub issues) and a different exit (landing straight on a
-branch instead of opening and merging a hosted pull request), and generalizes
-the single build pipeline into a configurable chain of lines that can hand
-work from one to the next.

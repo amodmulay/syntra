@@ -1,4 +1,5 @@
 /factory/jobs/
 /.worktrees/
+/factory/.dashboard-id
 __pycache__/
 *.py[cod]

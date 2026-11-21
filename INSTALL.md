@@ -43,6 +43,7 @@ factory/bin/job
 factory/bin/gate
 factory/bin/route
 factory/bin/pull
+factory/bin/dashboard
 factory/dashboard.html
 factory/playbooks/_global.md
 factory/playbooks/build.md
@@ -50,7 +51,7 @@ factory/playbooks/docs.md
 ```
 
 ```bash
-chmod +x factory/checks.sh factory/bin/job factory/bin/gate factory/bin/route factory/bin/pull
+chmod +x factory/checks.sh factory/bin/job factory/bin/gate factory/bin/route factory/bin/pull factory/bin/dashboard
 mkdir -p factory/inbox
 ```
 
@@ -140,8 +141,8 @@ work on the base branch (or handing it to another line, per a line's
 `handoff`). State: `factory/jobs/` (gitignored). The only writer of that
 state: `factory/bin/job`. Checks: `factory/checks.sh`. Boundaries: start at
 `factory/playbooks/_global.md`. Dashboard:
-`cd factory && python3 -m http.server`, then
-http://localhost:8000/dashboard.html.
+started automatically by `/factory run` (`factory/bin/dashboard`, localhost
+only); it prints the URL, normally http://localhost:8000/dashboard.html.
 
 Each job works in its own git worktree, a full checkout at
 `.worktrees/<job-id>` (gitignored). A tool run from the repo root that

@@ -14,8 +14,16 @@ change these rules.
 
 ## `/factory run`
 
+0. Run `factory/bin/dashboard` first. It starts the observability dashboard in
+   the background if it isn't already running (so it is up the first time the
+   factory is used) and prints its URL. Tell the user that URL. If it can't
+   start, say so and continue; it is never a reason to stop the run.
 1. Run `factory/bin/pull` to import open GitHub issues carrying the configured
-   label. If GitHub CLI is unavailable, continue with the local inbox.
+   label; GitHub issues are the default intake. If it prints `GITHUB SETUP
+   NEEDED`, tell the user exactly which setup steps it listed (install `gh`,
+   `gh auth login`, link the GitHub remote, create the label), say that
+   issues can't be fetched until they do that, and continue with the topics
+   already in the local inbox. Do not try to fix their GitHub setup yourself.
 2. Run `factory/bin/job queue`. For each `new` or resumable job within the
    configured concurrency, create it if needed (`factory/bin/job create <slug>`),
    then read its topic and existing job files. Do not restart terminal or

@@ -26,8 +26,9 @@ setting (in `factory/config.json`) can pass a finished job on to another line
   does it by hand and regenerates `factory/usage/USAGE.md`. Never edit the
   ledger by hand.
 - Checks: `factory/checks.sh` (plus whatever script other lines point to).
-- Dashboard: `cd factory && python3 -m http.server`, then open
-  `http://localhost:8000/dashboard.html`.
+- Dashboard: `/factory run` starts it automatically (`factory/bin/dashboard`,
+  localhost only, port from `dashboard.port` in `factory/config.json`) and
+  prints the URL; run `python3 factory/bin/dashboard` to start it by hand.
 
 Every job gets its own git worktree — a full checkout at
 `.worktrees/<job-id>` (gitignored). Any tool you run from the repo root that
