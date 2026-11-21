@@ -6,6 +6,7 @@
 <title>ei software factory</title>
 <script>
 // Runs before <body> is parsed so the first paint already has the right theme.
+// The saved-value check must stay identical to savedTheme() in the body script.
 (function () {
   var theme = null
   try {
@@ -48,7 +49,7 @@
     --line: #8a8fa1;
     --text: #1c1e26;
     --muted: #565b6e;
-    --faint: #6b7088;
+    --faint: #636880;
     --active: #0b6e8c;
     --pass: #13692f;
     --changes: #8a5000;
@@ -132,6 +133,10 @@
                 0 8px 24px -12px color-mix(in srgb, var(--human) 60%, transparent);
   }
   .card.done { opacity: .72; }
+  /* Light: opacity would drop muted/faint text under 4.5:1, so Done cards are not
+     faded. The title is set to --muted instead, which keeps the dimmed look. */
+  :root[data-theme="light"] .card.done { opacity: 1; }
+  :root[data-theme="light"] .card.done .feature { color: var(--muted); }
   .card.rejected .feature { text-decoration: line-through; text-decoration-color: var(--faint); }
   .flag.wait { color: var(--changes); }
   .card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
@@ -243,6 +248,8 @@
     background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
     padding: 12px 14px; overflow-x: auto;
   }
+  /* Light: the card tint is too close to the drawer panel, so inline code gets a border. */
+  :root[data-theme="light"] .md :not(pre) > code { background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
   .md pre code { background: none; padding: 0; }
   .md blockquote { border-left: 2px solid var(--line); padding-left: 12px; color: var(--muted); }
   .md a { color: var(--active); }
@@ -747,6 +754,7 @@ const THEME_KEY = 'syntra-factory-theme'
 let userChose = false // set by a toggle click this page session
 
 // Saved value, or null when nothing valid is saved or storage is unavailable.
+// The validation here must stay identical to the head script's check.
 function savedTheme() {
   try {
     const v = localStorage.getItem(THEME_KEY)
