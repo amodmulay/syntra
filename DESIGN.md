@@ -33,14 +33,14 @@ anything or trust a summary.
 ## How a pass flows
 
 ```
-triage (fable)     → ACCEPT (scope maybe narrowed, line picked) | NEEDS-INFO | REJECT
+triage             → ACCEPT (scope maybe narrowed, line picked) | NEEDS-INFO | REJECT
 route (script)     → reviewer set + models, from risk/surfaces, via config.json
 worktree           → factory/<job-id>, branched off the base branch
-spec-writer (opus) → spec.md
-builder (opus)     → commits; writes build.md
+spec-writer         → spec.md
+builder             → commits; writes build.md
 gate (script)      → the line's checks; FAIL sends the log back to the builder, no reviewer runs
 reviewers (routed) → run together, wait for every one; any CHANGES loops back through builder → gate → reviewers
-approver (opus)    → APPROVE: resync with base, gate again, land (or hand off); ESCALATE: parked for a human
+approver            → APPROVE: resync with base, gate again, land (or hand off); ESCALATE: parked for a human
 ```
 
 `stage` in `job.json` tracks one of: `triage`, `needs-info`, `spec`, `build`,
@@ -83,7 +83,7 @@ line — the real substance lives in files the next step reads, not in
 anything the orchestrator has to hold onto.
 
 **Judgment happens once, at the front door.** Triage is the only step that
-runs on Fable, and it runs exactly once per pass. It decides whether a topic
+is the single front-door check, and it runs exactly once per pass. It decides whether a topic
 is worth the chain of work that follows, trims the scope if it's too broad,
 picks which line should handle it, and asks a question when only the
 original requester can answer it. That question gets asked before a spec
@@ -109,12 +109,12 @@ Triage scores risk (`low`/`medium`/`high`) and the surfaces involved
 | | code reviewer | ux reviewer | ui reviewer | security reviewer |
 |---|---|---|---|---|
 | low risk | Haiku | | | |
-| medium risk | Sonnet | | | |
-| high risk | Sonnet | | | |
-| touches `ui` | | Sonnet | Haiku | |
-| touches `security` | | | | Opus |
+| medium risk | Haiku | | | |
+| high risk | Haiku | | | |
+| touches `ui` | | Haiku | Haiku | |
+| touches `security` | | | | Haiku |
 
-The builder is always Opus regardless of risk. A small, low-risk, UI-free
+Currently every step, including the builder, runs on Haiku to conserve tokens: models are set per agent in `.claude/agents/*.md` (`model:`) and per reviewer in `config.json`. Raise them there if quality suffers; the dashboard shows the model each step actually used. A small, low-risk, UI-free
 change gets exactly one Haiku reviewer. Changing who reviews what, or which
 model they run on, means editing one JSON file — never a prompt.
 

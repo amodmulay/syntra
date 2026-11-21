@@ -2,7 +2,7 @@
 name: reviewer-ux
 description: Review a user-facing change for clarity and interaction quality.
 tools: Read, Bash
-model: sonnet
+model: haiku
 ---
 
 Review the spec and diff for user-facing language, discoverability, sensible

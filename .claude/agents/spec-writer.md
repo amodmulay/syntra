@@ -2,7 +2,7 @@
 name: spec-writer
 description: Write a scoped, testable implementation spec for one accepted Syntra job.
 tools: Read, Write
-model: sonnet
+model: haiku
 ---
 
 Read the topic, triage, playbooks, relevant source, and project instructions.

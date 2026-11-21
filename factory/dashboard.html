@@ -105,6 +105,10 @@
   .links { display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--faint); }
   .meta { display: flex; gap: 10px; margin-top: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
   .meta .line { color: var(--active); }
+  .meta .models { color: var(--text); }
+  .models-table { margin-top: 8px; border-collapse: collapse; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .models-table th, .models-table td { text-align: left; padding: 2px 12px 2px 0; font-weight: normal; }
+  .models-table th:nth-child(n+3), .models-table td:nth-child(n+3) { text-align: right; }
   .meta .risk-high { color: var(--human); } .meta .risk-medium { color: var(--changes); }
   .chip.gate { flex: 0 0 38px; }
   .chip.FAIL { border: 1px solid transparent; color: var(--human); background: color-mix(in srgb, var(--human) 16%, transparent); }
@@ -280,8 +284,8 @@
 <script>
 const POLL_MS = 2000
 const COLUMNS = [
-  { label: 'Triage', who: 'triage · fable', stages: ['triage', 'needs-info'] },
-  { label: 'Spec', who: 'spec-writer · opus', stages: ['spec'] },
+  { label: 'Triage', who: 'triage', stages: ['triage', 'needs-info'] },
+  { label: 'Spec', who: 'spec-writer', stages: ['spec'] },
   { label: 'Build', who: 'builder · gate', stages: ['build', 'gate'] },
   { label: 'Review', who: 'routed reviewers', stages: ['review'] },
   { label: 'Approve', who: 'approver · land', stages: ['approve', 'merging'] },
@@ -291,6 +295,23 @@ const COLUMNS = [
 const STAGES = new Set(COLUMNS.flatMap((c) => c.stages))
 const LIVE = new Set(['triage', 'spec', 'build', 'gate', 'review', 'approve', 'merging'])
 const SHORT = { code: 'code', ux: 'ux', ui: 'ui', security: 'sec' }
+
+const modelName = (m) => String(m).replace(/^claude-/, '').replace(/-\d+(-\d+)?$/, '')
+// Distinct models a job has used, e.g. "haiku · sonnet"; per-step detail goes in the title.
+function modelsChip(job) {
+  const rows = job.models || []
+  if (!rows.length) return ''
+  const names = [...new Set(rows.map((r) => modelName(r.model)))]
+  const title = rows.map((r) => `${r.step}: ${r.model} (${r.calls} calls, ${r.tokens.toLocaleString()} tokens)`).join('\n')
+  return `<span class="models" title="${esc(title)}">${esc(names.join(' · '))}</span>`
+}
+function modelsTable(job) {
+  const rows = job.models || []
+  if (!rows.length) return ''
+  return `<table class="models-table"><thead><tr><th>Step</th><th>Model</th><th>Calls</th><th>Tokens</th><th>Cost</th></tr></thead><tbody>${
+    rows.map((r) => `<tr><td>${esc(r.step)}</td><td>${esc(r.model)}</td><td>${r.calls}</td><td>${r.tokens.toLocaleString()}</td><td>$${Number(r.cost).toFixed(2)}</td></tr>`).join('')
+  }</tbody></table>`
+}
 
 const $ = (id) => document.getElementById(id)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -372,6 +393,7 @@ function card(job, rounds) {
   const meta = [
     job.line ? `<span class="line">${esc(job.line)} · pass ${esc(job.pass)}</span>` : '',
     risk ? `<span class="risk-${esc(risk)}">${esc(risk)}</span>` : '',
+    modelsChip(job),
     `<span>$${Number(job.cost_usd).toFixed(2)}</span>`,
     `<span>${elapsed(job)}</span>`,
   ].join('')
@@ -501,7 +523,7 @@ async function refreshDrawer() {
   if (!job) return
   $('d-num').textContent = `${job.id} · ${job.stage}${job.line ? ` · ${job.line}` : ''}${job.round ? ` · round ${job.round}` : ''} · $${Number(job.cost_usd).toFixed(2)} · ${elapsed(job)}`
   $('d-title').textContent = job.title
-  $('d-links').innerHTML = `<span>${esc(job.topic)}</span>`
+  $('d-links').innerHTML = `<span>${esc(job.topic)}</span>${modelsTable(job)}`
 
   const base = `jobs/${job.id}/`
   const files = sortFiles(await listFiles(base))

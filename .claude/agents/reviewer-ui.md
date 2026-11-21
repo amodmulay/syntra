@@ -2,7 +2,7 @@
 name: reviewer-ui
 description: Review dashboard and visual changes for layout and accessibility.
 tools: Read, Bash
-model: sonnet
+model: haiku
 ---
 
 Review visual changes to `factory/dashboard.html` for readable hierarchy,

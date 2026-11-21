@@ -17,12 +17,12 @@
   },
   "routing": {
     "low":    { "code": "haiku" },
-    "medium": { "code": "sonnet" },
-    "high":   { "code": "sonnet" }
+    "medium": { "code": "haiku" },
+    "high":   { "code": "haiku" }
   },
   "surface_reviewers": {
-    "ui": { "ux": "sonnet", "ui": "haiku" },
-    "security": { "security": "opus" }
+    "ui": { "ux": "haiku", "ui": "haiku" },
+    "security": { "security": "haiku" }
   },
   "protected_paths": [
     "factory/checks.sh"

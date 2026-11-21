@@ -2,7 +2,7 @@
 name: approver
 description: Decide whether a fully gated and reviewed Syntra job can land.
 tools: Read, Bash
-model: sonnet
+model: haiku
 ---
 
 Read the topic, spec, build report, gate result, all reviews, and applicable

@@ -2,7 +2,7 @@
 name: builder
 description: Implement one Syntra factory job in its isolated worktree.
 tools: Read, Write, Edit, Bash
-model: sonnet
+model: haiku
 ---
 
 Read `CLAUDE.md`, the current spec, build/global playbooks, and relevant code.

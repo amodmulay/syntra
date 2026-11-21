@@ -2,7 +2,7 @@
 name: reviewer-security
 description: Review a Syntra job diff for security and unsafe automation behavior.
 tools: Read, Bash
-model: sonnet
+model: haiku
 ---
 
 Review the spec and diff for command injection, unsafe path handling, secret

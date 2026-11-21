@@ -251,28 +251,55 @@ def prompt_text(line):
     return " ".join(b.get("text", "") for b in content if isinstance(b, dict))
 
 
-def cost_usd(job):
-    """API-equivalent cost of every subagent whose prompt names this job's folder.
+STEP_FILES = {"triage.md": "triage", "spec.md": "spec", "build.md": "build",
+              "decision.md": "approve"}
+
+
+def step_of(job, entries):
+    """Which factory step a subagent performed, from the job files it wrote."""
+    root = str(job_dir(job["id"])).replace("\\", "/") + "/"
+    for entry in entries:
+        msg = entry.get("message")
+        if entry.get("type") != "assistant" or not isinstance(msg, dict) or not isinstance(msg.get("content"), list):
+            continue
+        for block in msg["content"]:
+            if block.get("type") != "tool_use":
+                continue
+            path = str((block.get("input") or {}).get("file_path", "")).replace("\\", "/")
+            if not path.startswith(root):
+                continue
+            name = path.rsplit("/", 1)[-1]
+            m = re.fullmatch(r"review-(\w+)\.md", name)
+            if m:
+                return f"review-{m.group(1)}"
+            if name in STEP_FILES:
+                return STEP_FILES[name]
+    return "other"
+
+
+def usage_by_step(job):
+    """Model, tokens and API-equivalent cost of every subagent whose prompt names this job's folder.
 
     Claude Code writes each subagent's messages, with model and token usage, to
     <config>/projects/<project>/<session>/subagents/agent-<id>.jsonl. Every
     factory prompt starts with `Job folder: <path>/`, which ties a transcript to
-    its job across sessions.
+    its job across sessions. Returns one row per (step, model).
     """
     needle = f"Job folder: {job_dir(job['id'])}/"
     prices = CONFIG["prices_usd_per_mtok"]
-    total = 0.0
+    rows = {}
     for path in transcripts_dir().glob("*/subagents/agent-*.jsonl"):
         with path.open() as f:
             first = f.readline()
             if not first or needle not in prompt_text(first):
                 continue
-            usage_by_message = {}
-            for line in f:
-                entry = json.loads(line)
-                msg = entry.get("message")
-                if entry.get("type") == "assistant" and isinstance(msg, dict) and msg.get("usage"):
-                    usage_by_message[msg["id"]] = (msg["model"], msg["usage"])
+            entries = [json.loads(line) for line in f]
+        usage_by_message = {}
+        for entry in entries:
+            msg = entry.get("message")
+            if entry.get("type") == "assistant" and isinstance(msg, dict) and msg.get("usage"):
+                usage_by_message[msg["id"]] = (msg["model"], msg["usage"])
+        step = step_of(job, entries)
         for model, u in usage_by_message.values():
             tokens = (u.get("input_tokens", 0) + u.get("output_tokens", 0)
                       + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0))
@@ -284,12 +311,20 @@ def cost_usd(job):
             split = u.get("cache_creation") or {}
             write_1h = split.get("ephemeral_1h_input_tokens", 0)
             write_5m = u.get("cache_creation_input_tokens", 0) - write_1h
-            total += (u.get("input_tokens", 0) * p["input"]
-                      + u.get("output_tokens", 0) * p["output"]
-                      + write_5m * p["cache_write_5m"]
-                      + write_1h * p["cache_write_1h"]
-                      + u.get("cache_read_input_tokens", 0) * p["cache_read"]) / 1e6
-    return round(total, 2)
+            cost = (u.get("input_tokens", 0) * p["input"]
+                    + u.get("output_tokens", 0) * p["output"]
+                    + write_5m * p["cache_write_5m"]
+                    + write_1h * p["cache_write_1h"]
+                    + u.get("cache_read_input_tokens", 0) * p["cache_read"]) / 1e6
+            row = rows.setdefault((step, model), {"step": step, "model": model, "calls": 0, "tokens": 0, "cost": 0.0})
+            row["calls"] += 1
+            row["tokens"] += tokens
+            row["cost"] += cost
+    return [{**r, "cost": round(r["cost"], 4)} for r in sorted(rows.values(), key=lambda r: (r["step"], r["model"]))]
+
+
+def cost_usd(job):
+    return round(sum(r["cost"] for r in usage_by_step(job)), 2)
 
 
 # ---- Sync: fields derived from files ---------------------------------------
@@ -316,7 +351,8 @@ def sync(job):
                 line = first_line(rd / f"review-{r}.md")
                 m = re.fullmatch(r"VERDICT:\s*(PASS|CHANGES)", line or "")
                 job["reviews"][r] = m.group(1) if m else ("pending" if line is None else "invalid")
-    job["cost_usd"] = cost_usd(job)
+    job["models"] = usage_by_step(job)
+    job["cost_usd"] = round(sum(r["cost"] for r in job["models"]), 2)
     return job
 
 
@@ -589,7 +625,7 @@ def cmd_create(topic):
         "worktree": str(REPO / ".worktrees" / job_id),
         "round": 0, "round_limit": CONFIG["max_rounds"],
         "triage": None, "agents": None, "gate": None, "reviews": {},
-        "cost_usd": 0.0, "started": now(), "ended": None,
+        "cost_usd": 0.0, "models": [], "started": now(), "ended": None,
     }
     write_topic_md(job)
     save(job)
