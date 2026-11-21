@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ei software factory</title>
+<title>Syntra factory</title>
 <script>
 // Runs before <body> is parsed so the first paint already has the right theme.
 // The saved-value check must stay identical to savedTheme() in the body script.
@@ -87,12 +87,46 @@
     border-radius: 6px; padding: 6px 10px; cursor: pointer;
     transition: color .15s, border-color .15s;
   }
+  .views { display: flex; gap: 4px; }
+  .views button {
+    font-family: var(--mono); font-size: 11px; line-height: 1; white-space: nowrap;
+    color: var(--muted); background: none; border: 1px solid transparent;
+    border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  .views button:hover { color: var(--text); }
+  .views button[aria-pressed="true"] { color: var(--text); background: var(--card); border-color: var(--line); }
+  .views button:focus-visible { outline: 2px solid var(--active); outline-offset: 2px; }
   #theme-toggle:hover { color: var(--text); }
   #theme-toggle:focus-visible { outline: 2px solid var(--active); outline-offset: 2px; }
   .banner {
     margin: 12px 32px 0; padding: 10px 14px; border: 1px solid var(--human);
     border-radius: 8px; color: var(--human); font-family: var(--mono); font-size: 12px;
   }
+
+  /* Views: not picked up, task stats */
+  .board[hidden], .view[hidden] { display: none; }
+  .view { padding: 20px 32px 40px; }
+  .view h2 { font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+  .view .lede { font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 0 0 14px; max-width: 80ch; }
+  .view .block + .block { margin-top: 28px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+  .view table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .view th, .view td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .view th { font-family: var(--mono); font-size: 10.5px; font-weight: normal; color: var(--muted); white-space: nowrap; }
+  .view tr:last-child td { border-bottom: 0; }
+  .view td.num, .view th.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+  .view td.mono { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .view tr[data-job] { cursor: pointer; }
+  .view tr[data-job]:hover td { background: var(--card-hover); }
+  .view .t-title { color: var(--text); }
+  .view .t-sub { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .view tfoot td { font-family: var(--mono); font-size: 11px; color: var(--text); border-top: 1px solid var(--line); border-bottom: 0; }
+  .badge { font-family: var(--mono); font-size: 10.5px; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
+  .badge.auto { color: var(--pass); border-color: var(--pass); }
+  .badge.human { color: var(--changes); border-color: var(--changes); }
+  .badge.wait { color: var(--human); border-color: var(--human); }
+  #pending-count:not(:empty)::before { content: "("; }
+  #pending-count:not(:empty)::after { content: ")"; }
 
   /* Board */
   .board {
@@ -288,6 +322,7 @@
     header { padding: 20px 16px 4px; }
     .banner { margin: 12px 16px 0; }
     .board { grid-template-columns: 1fr; padding: 16px 16px 32px; }
+    .view { padding: 16px 16px 32px; }
     footer { padding: 0 16px 24px; }
     .d-head { padding: 16px; }
     .d-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
@@ -304,14 +339,21 @@
 </head>
 <body>
 <header>
-  <h1>ei software factory</h1>
+  <h1>Syntra factory</h1>
   <div class="head-tools">
+    <nav class="views" aria-label="Views">
+      <button type="button" data-view="board" aria-pressed="true">Board</button>
+      <button type="button" data-view="pending" aria-pressed="false">Not picked up <span id="pending-count"></span></button>
+      <button type="button" data-view="stats" aria-pressed="false">Task stats</button>
+    </nav>
     <div class="status" id="status">connecting…</div>
     <button id="theme-toggle" type="button" aria-label="Switch to light theme" title="Switch to light theme">Light</button>
   </div>
 </header>
 <div id="banner"></div>
 <main class="board" id="board"></main>
+<section class="view" id="view-pending" hidden></section>
+<section class="view" id="view-stats" hidden></section>
 <footer>
   <span>/factory run</span>
   <span>/factory run &lt;topic&gt;</span>
@@ -496,11 +538,155 @@ async function render() {
   $('totals').textContent = `${running} running · $${cost.toFixed(2)} API-equivalent`
 }
 
+// ---- Views: tasks not picked up, and per-task statistics ------------------
+
+const VIEWS = ['board', 'pending', 'stats']
+let view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'board'
+let inboxNames = []
+let concurrency = null
+const viewCache = {}
+
+function setView(v) {
+  view = VIEWS.includes(v) ? v : 'board'
+  try { history.replaceState(null, '', `#${view}`) } catch { /* e.g. sandboxed preview */ }
+  $('board').hidden = view !== 'board'
+  $('view-pending').hidden = view !== 'pending'
+  $('view-stats').hidden = view !== 'stats'
+  document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view)))
+  renderViews().catch(() => {})
+}
+
+function setHtml(id, html) {
+  if (viewCache[id] !== html) { viewCache[id] = html; $(id).innerHTML = html }
+}
+
+function topicInfo(name, text) {
+  const lines = text.split('\n')
+  const marker = lines[0].match(/factory-issue:\s*(\d+)/)
+  const heading = lines.find((l) => /^#\s+/.test(l))
+  const body = lines.filter((l) => l.trim() && !/^<!--/.test(l) && !/^#\s+/.test(l)).join(' ')
+  return {
+    slug: name.replace(/\.md$/, ''),
+    title: heading ? heading.replace(/^#\s+/, '') : name,
+    issue: marker ? marker[1] : null,
+    snippet: body.length > 160 ? `${body.slice(0, 157)}…` : body,
+  }
+}
+
+async function refreshInbox() {
+  try { inboxNames = (await listFiles('inbox/')).filter((f) => !f.includes('/')) } catch { inboxNames = [] }
+  if (concurrency === null) {
+    try { concurrency = JSON.parse(await fetchText('config.json')).concurrency } catch { concurrency = 0 }
+  }
+  const taken = new Set(jobs.map((j) => j.topic))
+  const n = inboxNames.filter((f) => !taken.has(f.replace(/\.md$/, ''))).length
+  $('pending-count').textContent = n ? String(n) : ''
+}
+
+function jobRow(job, what) {
+  return `<tr data-job="${esc(job.id)}" tabindex="0">
+    <td><div class="t-title">${esc(job.title)}</div><div class="t-sub">${esc(job.id)}</div></td>
+    <td><span class="badge wait">${esc(job.stage)}</span></td>
+    <td class="mono">${esc(what)}</td></tr>`
+}
+
+async function renderPending() {
+  const taken = new Set(jobs.map((j) => j.topic))
+  const names = inboxNames.filter((f) => !taken.has(f.replace(/\.md$/, '')))
+  const topics = await Promise.all(names.map(async (n) => {
+    try { return topicInfo(n, await fetchText(`inbox/${n}`)) } catch { return topicInfo(n, '') }
+  }))
+  const running = jobs.filter((j) => LIVE.has(j.stage)).length
+  const why = concurrency && running >= concurrency
+    ? `Held: ${running} jobs are running (limit ${concurrency}).`
+    : 'Queued: the next /factory run will pick it up.'
+  const queued = topics.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Task</th><th>Source</th><th>Status</th></tr></thead><tbody>${
+      topics.map((t) => `<tr>
+        <td><div class="t-title">${esc(t.title)}</div><div class="t-sub">${esc(t.snippet || t.slug)}</div></td>
+        <td class="mono">${t.issue ? `GitHub issue #${esc(t.issue)}` : `inbox/${esc(t.slug)}.md`}</td>
+        <td class="mono">${esc(why)}</td></tr>`).join('')
+    }</tbody></table></div>`
+    : '<div class="empty">Nothing is waiting. Every topic in the inbox already has a job.</div>'
+  const waiting = jobs.filter((j) => j.stage === 'needs-info' || j.stage === 'needs-human')
+  const waitingHtml = waiting.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Task</th><th>Stage</th><th>What it needs from you</th></tr></thead><tbody>${
+      waiting.map((j) => jobRow(j, j.stage === 'needs-info'
+        ? 'Answer the question in triage.md, then /factory <your answer>'
+        : 'Read decision.md, then /factory <feedback>')).join('')
+    }</tbody></table></div>`
+    : '<div class="empty">No job is waiting on you.</div>'
+  setHtml('view-pending', `
+    <div class="block"><h2>Not picked up yet (${topics.length})</h2>
+      <p class="lede">Topics in the inbox that have no job. They start the next time /factory run is used.</p>${queued}</div>
+    <div class="block"><h2>Parked, waiting on you (${waiting.length})</h2>
+      <p class="lede">Jobs that started but cannot continue without your input. Click one to read what it asks.</p>${waitingHtml}</div>`)
+}
+
+const jobTokens = (j) => (j.models || []).reduce((n, r) => n + r.tokens, 0)
+
+function autonomy(j) {
+  const i = j.interventions
+  if (!i) return { cls: '', text: 'unknown', tip: 'Not computed yet for this job' }
+  const tip = [`${i.answers} answers`, `${i.feedback} feedback`, `${i.approvals} approvals`,
+    i.rejected ? 'you rejected it' : '', i.waiting ? 'waiting on you now' : ''].filter(Boolean).join(', ')
+  if (i.waiting) return { cls: 'wait', text: i.total > 1 ? `waiting on you (×${i.total})` : 'waiting on you', tip }
+  if (i.total === 0) {
+    const finished = j.stage === 'merged' || j.stage === 'rejected'
+    return { cls: 'auto', text: finished ? '100% autonomous' : 'autonomous so far', tip: 'No human input was needed' }
+  }
+  return { cls: 'human', text: `needed you ×${i.total}`, tip }
+}
+
+async function renderStats() {
+  const rows = [...jobs].sort((a, b) => b.id.localeCompare(a.id))
+  let tokens = 0, cost = 0, auto = 0, finished = 0
+  const body = rows.map((j) => {
+    const known = (j.models || []).length > 0
+    const t = jobTokens(j)
+    tokens += t
+    cost += Number(j.cost_usd)
+    const done = j.stage === 'merged' || j.stage === 'rejected'
+    if (done) { finished += 1; if (j.interventions && j.interventions.total === 0) auto += 1 }
+    const a = autonomy(j)
+    const names = known ? [...new Set(j.models.map((r) => modelName(r.model)))].join(' · ') : (Number(j.cost_usd) > 0 ? 'n/a' : '—')
+    const tip = known ? j.models.map((r) => `${r.step}: ${r.model} (${r.calls} calls, ${r.tokens.toLocaleString()} tokens)`).join('\n')
+      : 'Recorded before per-step models were tracked'
+    return `<tr data-job="${esc(j.id)}" tabindex="0">
+      <td><div class="t-title">${esc(j.title)}</div><div class="t-sub">${esc(j.id)}${j.line ? ` · ${esc(j.line)}` : ''}</div></td>
+      <td><span class="badge">${esc(j.stage)}</span></td>
+      <td class="mono" title="${esc(tip)}">${esc(names)}</td>
+      <td class="num">${known ? t.toLocaleString() : (Number(j.cost_usd) > 0 ? 'n/a' : '—')}</td>
+      <td class="num">$${Number(j.cost_usd).toFixed(2)}</td>
+      <td class="num">${esc(elapsed(j))}</td>
+      <td class="num">${j.interventions ? j.interventions.total : '—'}</td>
+      <td><span class="badge ${a.cls}" title="${esc(a.tip)}">${esc(a.text)}</span></td></tr>`
+  }).join('')
+  setHtml('view-stats', `
+    <div class="block"><h2>Task statistics (${rows.length})</h2>
+      <p class="lede">Cost is API-equivalent dollars, not a bill. Elapsed is wall-clock time from start to finish and includes time spent waiting for you.
+      Tokens add up input (including cached input), cache writes and output; most of a large total is usually cached input.
+      Tokens and models show n/a for jobs run before they were recorded. Click a row to open the job.</p>
+      ${rows.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Task</th><th>Stage</th><th>Model</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Elapsed</th><th class="num">Human steps</th><th>Autonomy</th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr><td>Total</td><td></td><td></td><td class="num">${tokens.toLocaleString()}</td><td class="num">$${cost.toFixed(2)}</td><td></td><td></td>
+        <td>${auto} of ${finished} finished fully autonomous</td></tr></tfoot></table></div>`
+        : '<div class="empty">No jobs yet.</div>'}</div>`)
+}
+
+async function renderViews() {
+  await refreshInbox()
+  if (view === 'pending') await renderPending()
+  if (view === 'stats') await renderStats()
+}
+
 async function poll() {
   const status = $('status')
   try {
     jobs = await loadJobs()
     await render()
+    await renderViews()
     if (openJobId) await refreshDrawer()
     status.className = 'status'
     status.innerHTML = `<span class="dot"></span>jobs/ · ${new Date().toLocaleTimeString()}`
@@ -633,6 +819,8 @@ function closeDrawer() {
 
 document.addEventListener('click', (e) => {
   if (e.target.closest('a')) return
+  const viewEl = e.target.closest('[data-view]')
+  if (viewEl) return setView(viewEl.dataset.view)
   const cardEl = e.target.closest('[data-job]')
   if (cardEl) return openDrawer(cardEl.dataset.job)
   const fileEl = e.target.closest('[data-file]')
@@ -792,6 +980,7 @@ if (lightQuery) {
   else if (lightQuery.addListener) lightQuery.addListener(onOsThemeChange)
 }
 
+setView(view)
 poll()
 setInterval(poll, POLL_MS)
 </script>

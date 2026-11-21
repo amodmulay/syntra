@@ -370,6 +370,19 @@ def sync(job):
                 line = first_line(rd / f"review-{r}.md")
                 m = re.fullmatch(r"VERDICT:\s*(PASS|CHANGES)", line or "")
                 job["reviews"][r] = m.group(1) if m else ("pending" if line is None else "invalid")
+    # How often a person had to step in. Every wait ends in exactly one of: an
+    # answer, feedback, a rejection, or an approval from needs-human. A wait
+    # that is still open counts too. Zero means the job ran fully autonomously.
+    answers = len(list(d.glob("answer-*.md")))
+    feedback = len(list(d.glob("*/feedback-*.md")))
+    rejected = (d / "rejection.md").exists()
+    approvals = job.get("human_approvals", 0)
+    waiting = job["stage"] in {"needs-info", "needs-human"}
+    job["interventions"] = {
+        "answers": answers, "feedback": feedback, "rejected": rejected,
+        "approvals": approvals, "waiting": waiting,
+        "total": answers + feedback + approvals + int(rejected) + int(waiting),
+    }
     # Usage is re-derived from transcripts that live outside the repo. Never let
     # a sync lower what was already recorded if some of them have been deleted.
     merged = {(r["step"], r["model"]): r for r in job.get("models") or []}
@@ -529,7 +542,8 @@ def advance(job, stage):
             next_round(job)
         elif stage == "rejected":
             require((d / "rejection.md").exists(), "use `job reject` to reject a waiting job")
-        # needs-human → merging is a person's approval; `job merge` runs the checks.
+        elif stage == "merging":  # a person's approval; `job merge` runs the checks
+            job["human_approvals"] = job.get("human_approvals", 0) + 1
 
     if stage in TERMINAL:
         drop_worktree(job)
@@ -579,7 +593,7 @@ def close_linked_issue(job):
     try:
         run(["gh", "issue", "comment", str(n), "--body", f"Factory: merged.\n\n{decision}"])
         run(["gh", "issue", "close", str(n)])
-    except Refused:
+    except (Refused, OSError):
         pass  # gh missing, not authenticated, or the issue already changed state — not fatal
 
 

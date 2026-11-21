@@ -181,6 +181,18 @@ and a table of model, calls, tokens and cost per step.
 
 The header has a **Light** or **Dark** button next to the status line. It names the theme a click switches to, so it reads "Light" while the dark theme is showing. With no saved choice, the dashboard follows your browser or OS light or dark setting, including changes made while the page is open. A click saves your choice in this browser's local storage for the dashboard's address (scheme, host and port), and a saved choice then wins over the OS setting. If the browser blocks local storage, the choice lasts only until the page is reloaded. The dashboard has no reset control: to follow the OS again, clear the site data for that address or delete the `syntra-factory-theme` key in the browser's developer tools. A saved choice applies to one address only, so the same dashboard on another port, or on `127.0.0.1` instead of `localhost`, keeps its own choice.
 
+The header also has two other views next to **Board**:
+
+- **Not picked up** lists topics in `factory/inbox/` that have no job yet
+  (the badge shows how many), why each is waiting, and the jobs that are
+  parked waiting for your answer or decision.
+- **Task stats** has one row per job: model, tokens, cost, elapsed time, how
+  many times a person had to step in, and whether it ran **100% autonomous**,
+  needed you, or is waiting on you now. A "human step" is an answer to a
+  triage question, feedback after an escalation, an approval from
+  `needs-human`, or a rejection. Cost is API-equivalent dollars, elapsed time
+  includes time spent waiting for you, and tokens count cached input.
+
 **Terminal summary:**
 
 ```
