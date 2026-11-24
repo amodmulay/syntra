@@ -23,5 +23,14 @@
   "reviews": {},
   "cost_usd": 0.06,
   "started": "2026-11-20T08:37:01Z",
-  "ended": "2026-11-20T08:37:25Z"
+  "ended": "2026-11-20T08:37:25Z",
+  "interventions": {
+    "answers": 0,
+    "feedback": 0,
+    "rejected": false,
+    "approvals": 0,
+    "waiting": false,
+    "total": 0
+  },
+  "models": []
 }

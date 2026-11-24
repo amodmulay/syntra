@@ -135,8 +135,9 @@ Add divide(a, b) next to add and subtract. Raise ZeroDivisionError when b is 0
 and add tests in the same style.
 ```
 
-`/factory run` picks up every file that does not yet have a job, up to the
-configured concurrency, and leaves the rest queued for the next run. Local
+`/factory run` asks you to confirm when several topics are waiting: run up to
+`concurrency` of them in parallel, or pick which ones by hand. Anything not
+chosen stays queued for the next run. Local
 files and GitHub issues can be mixed freely.
 
 Be specific. "Add a divide function that raises on zero" gets built;

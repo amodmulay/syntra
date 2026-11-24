@@ -40,5 +40,14 @@
   },
   "cost_usd": 0.68,
   "started": "2026-11-20T00:03:26Z",
-  "ended": "2026-11-20T00:09:17Z"
+  "ended": "2026-11-20T00:09:17Z",
+  "interventions": {
+    "answers": 0,
+    "feedback": 0,
+    "rejected": false,
+    "approvals": 0,
+    "waiting": false,
+    "total": 0
+  },
+  "models": []
 }

@@ -24,10 +24,14 @@ change these rules.
    `gh auth login`, link the GitHub remote, create the label), say that
    issues can't be fetched until they do that, and continue with the topics
    already in the local inbox. Do not try to fix their GitHub setup yourself.
-2. Run `factory/bin/job queue`. For each `new` or resumable job within the
-   configured concurrency, create it if needed (`factory/bin/job create <slug>`),
-   then read its topic and existing job files. Do not restart terminal or
-   waiting jobs.
+2. Run `factory/bin/job queue`. If more than one job is eligible (`new` or
+   resumable), do not start any yet: ask the user with AskUserQuestion whether
+   to run the first N in parallel (N = configured `concurrency`, currently 3,
+   capped at the number eligible) or to choose manually which jobs to run
+   (list them, multi-select). Run only what they confirm; the rest stay
+   queued. With a single eligible job, just run it. Then, for each chosen
+   job, create it if needed (`factory/bin/job create <slug>`), and read its
+   topic and existing job files. Do not restart terminal or waiting jobs.
 3. At `triage`, use the `triage` agent. It must write `triage.md` with first
    fields `DECISION`, `LINE`, `RISK`, `SURFACES`, and `RESCOPED`. For
    `NEEDS-INFO`, advance to `needs-info` and report the question. For `REJECT`,
