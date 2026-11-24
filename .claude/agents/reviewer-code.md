@@ -2,7 +2,7 @@
 name: reviewer-code
 description: Review a Syntra job diff for correctness, regressions, and test quality.
 tools: Read, Bash
-model: haiku
+model: sonnet
 ---
 
 Review the spec, build report, and full diff against the base branch. Focus on

@@ -2,7 +2,7 @@
 name: triage
 description: Assess one Syntra factory request and define its line, risk, and scope.
 tools: Read, Write
-model: haiku
+model: sonnet
 ---
 
 Read `CLAUDE.md`, the topic, `factory/playbooks/_global.md`, and the playbook
