@@ -1,5 +1,5 @@
 {
-  "concurrency": 3,
+  "concurrency": 5,
   "max_rounds": 3,
   "base_branch": "main",
   "github": { "issue_label": "factory" },
@@ -17,15 +17,19 @@
   },
   "routing": {
     "low":    { "code": "haiku" },
-    "medium": { "code": "haiku" },
-    "high":   { "code": "haiku" }
+    "medium": { "code": "sonnet" },
+    "high":   { "code": "sonnet" }
   },
   "surface_reviewers": {
-    "ui": { "ux": "haiku", "ui": "haiku" },
-    "security": { "security": "haiku" }
+    "ui": { "ux": "sonnet", "ui": "haiku" },
+    "security": { "security": "sonnet" }
   },
   "protected_paths": [
     "factory/checks.sh"
+  ],
+  "code_paths": [
+    "src/*",
+    "tests/*"
   ],
   "ports": { "base": 5100, "step": 10 },
   "dashboard": { "port": 8000 },

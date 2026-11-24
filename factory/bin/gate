@@ -77,18 +77,31 @@ def checks_script(job):
     return REPO / line["checks"]
 
 
-def protected_changes(worktree):
-    """Existing files under protected_paths that the branch modified or deleted."""
+def diff_entries(worktree):
+    """(status, old_path) pairs for the branch's diff against BASE. old_path is
+    the pre-change path for renames/copies, so a moved-away protected file is
+    still caught."""
     diff = git(worktree, "diff", "--name-status", f"{BASE}...HEAD")
-    hits = []
+    entries = []
     for line in diff.splitlines():
         status, *paths = line.split("\t")
-        if status.startswith("A"):
-            continue
-        old = paths[0]  # for renames and copies, the original path
-        if any(fnmatch.fnmatch(old, pattern) for pattern in CONFIG["protected_paths"]):
-            hits.append(f"{status[0]} {old}")
-    return hits
+        entries.append((status, paths[0]))
+    return entries
+
+
+def protected_changes(entries):
+    """Existing files under protected_paths that the branch modified or deleted."""
+    return [f"{status[0]} {old}" for status, old in entries
+            if not status.startswith("A")
+            and any(fnmatch.fnmatch(old, pattern) for pattern in CONFIG["protected_paths"])]
+
+
+def touches_code(entries):
+    """Whether the diff touches any path the checks script actually exercises.
+    A line whose scope excludes code (e.g. docs) can skip the real test run
+    when nothing under code_paths changed; any status (A/M/D/R) counts."""
+    patterns = CONFIG.get("code_paths", [])
+    return any(fnmatch.fnmatch(path, pattern) for _, path in entries for pattern in patterns)
 
 
 def run_checks(worktree, script):
@@ -106,15 +119,22 @@ def gate(job_id, merge):
     round_dir = pass_dir / f"round-{job['round']}"
     script = checks_script(job)
     commit = git(worktree, "rev-parse", "HEAD").strip()
-    protected = protected_changes(worktree)
-    code, log, seconds = run_checks(worktree, script)
+    entries = diff_entries(worktree)
+    protected = protected_changes(entries)
+    skip = not touches_code(entries)
+    if skip:
+        code, log, seconds = 0, "(skipped: diff touches no code_paths from config.json)\n", 0
+    else:
+        code, log, seconds = run_checks(worktree, script)
     verdict = "PASS" if code == 0 and not protected else "FAIL"
     name = "merge-checks" if merge else "checks"
     round_dir.mkdir(parents=True, exist_ok=True)
     (round_dir / f"{name}.log").write_text(log)
     tail = "\n".join(log.rstrip().splitlines()[-TAIL:])
+    ran = f"skipped (no changes under {', '.join(CONFIG.get('code_paths', []))})" if skip \
+        else f"{'passed' if code == 0 else f'failed with exit {code}'} in {seconds}s"
     summary = [
-        f"{script.relative_to(REPO)} {'passed' if code == 0 else f'failed with exit {code}'} in {seconds}s",
+        f"{script.relative_to(REPO)} {ran}",
         f"Protected paths: {'changed: ' + ', '.join(protected) if protected else 'none changed'}",
         f"Commit {commit[:7]}" + (f", synced with the latest {BASE} before merging" if merge else ""),
     ]
@@ -123,10 +143,11 @@ def gate(job_id, merge):
         "## Summary\n" + "\n".join(f"- {s}" for s in summary) + "\n\n"
         "## Protected paths\n"
         + ("\n".join(f"- {p}" for p in protected) if protected else "None changed.")
-        + f"\n\n## {script.name}\nExit {code} in {seconds}s. Last {TAIL} lines of {name}.log:\n\n```\n{tail}\n```\n"
+        + f"\n\n## {script.name}\n{'Skipped' if skip else f'Exit {code} in {seconds}s'}. Last {TAIL} lines of {name}.log:\n\n```\n{tail}\n```\n"
     )
-    print(f"GATE: {verdict} ({job_id} {job['line']} round {job['round']}, exit {code} in {seconds}s"
-          + (f", protected paths changed: {', '.join(protected)}" if protected else "") + ")")
+    print(f"GATE: {verdict} ({job_id} {job['line']} round {job['round']}, "
+          + (f"skipped, " if skip else f"exit {code} in {seconds}s, ")
+          + (f"protected paths changed: {', '.join(protected)}" if protected else "no protected paths changed") + ")")
     sys.exit(0 if verdict == "PASS" else 1)
 
 
@@ -139,7 +160,10 @@ def hook():
     prompt = content if isinstance(content, str) else " ".join(b.get("text", "") for b in content)
     job_id = prompt.split("Job: ", 1)[1].split(".", 1)[0]
     job = load_job(job_id)
-    code, log, _ = run_checks(worktree_path(job), checks_script(job))
+    worktree = worktree_path(job)
+    if not touches_code(diff_entries(worktree)):
+        sys.exit(0)  # nothing under code_paths changed; the gate will skip too
+    code, log, _ = run_checks(worktree, checks_script(job))
     if code != 0:
         tail = "\n".join(log.rstrip().splitlines()[-40:])
         print(f"this line's checks fail in your worktree (exit {code}). The gate will reject this "

@@ -12,7 +12,7 @@ folder and be visible on every machine that has the repository. This slice:
 1. `factory/bin/job` writes `factory/records/<job-id>.json` when a job reaches `merged`
    on its final line (not a handoff), and when a job is `rejected`.
 2. The dashboard shows a card, with cost, for every record that has no local
-   `factory/jobs/<job-id>/` folder, labelled "from record".
+   `factory/jobs/<job-id>/` folder, labelled "Recorded on another device".
 
 Out of scope (see Exclusions): GitHub label/Project/comment work, backfill, ledger changes,
 cost inference from the ledger, pushing.
@@ -162,9 +162,10 @@ so `records/` is reachable at `records/` relative to `dashboard.html`.
   using the same card markup as local cards. It shows: id, a label taken from the id slug (numeric
   prefix dropped, hyphens replaced by spaces; round 2, no title), stage (rejected is struck through as
   today), line and pass, risk from `triage.risk`, models chip, `$cost_usd` with two decimals, and
-  elapsed time from `started` to `ended`. It carries a visible "record only" tag (rejected:
-  "rejected · record only"), with a `title` tooltip "Read from factory/records/ (no job folder on
-  this machine)". Round 2: no `<topic>.md` link line. Done cards, local and record, are interleaved
+  elapsed time from `started` to `ended`. Rejected records keep the same `<span class="flag wait">rejected</span>`
+  flag as local rejected jobs. Every record also carries a separate visible line, "Recorded on another
+  device", with a `title` tooltip "This summary was saved from another machine. This machine has no
+  job folder, so there is no detail view.". Round 2: no `<topic>.md` link line. Done cards, local and record, are interleaved
   by `ended`, newest first.
 - Record cards have no `data-job` attribute, so clicking them does not open the drawer (there is no
   folder to read). They are not focusable as job cards.
@@ -231,8 +232,8 @@ Exact tests (round 2 adds the tests listed under "Round 2 test additions" below)
 10. `test_no_record_for_in_progress_stages`: after `cmd_create` and `advance` to `spec`, `RECORDS` is not
     created.
 11. `test_dashboard_reads_records_and_dedupes`: read `factory/dashboard.html` as text and assert it
-    contains `fetchText('records/')` (or the literal `'records/'`), the string `record only` (round 2:
-    replaces `from record` as the visible tag), and the
+    contains `fetchText('records/')` (or the literal `'records/'`), the string `Recorded on another device`
+    (round 3: replaces `record only`/`from record` as the visible label), and the
     dedupe on job id (the record filter that checks `jobIds`). Static check only; behaviour is verified
     manually (below).
 
@@ -240,7 +241,7 @@ Manual dashboard check (required, since the JS is not covered by unittest): in a
 `factory/` (not the real one), add `records/<id>.json` for an id that has no local job, plus a second
 record for an id that does have a local job. Serve it with `python -m http.server` from that copy's
 `factory/`, open `dashboard.html`, and confirm: the record-only card appears in Done with its cost and
-"from record"; the duplicate id shows once (the local card); clicking a record card does not open the
+"Recorded on another device"; the duplicate id shows once (the local card); clicking a record card does not open the
 drawer or show an error; with no `records/` folder the board is unchanged. Record the result in the
 builder's report.
 
@@ -257,18 +258,23 @@ the same bullet to CLAUDE.md (see build.md). GETTING_STARTED.md gets a short not
 
 ## Round 2 deviations and additions (fixes for round-1 review)
 
-- Deviation, merging to needs-human (`advance`): the ancestor check does not apply. A failed land
-  is accepted only when `decision.md` starts with `ESCALATE`, which `cmd_merge` writes first. Without
-  this, a failed land could not reach needs-human. The check is a convention, not a proof about base.
-  `advance`'s `merged` outcome is now set only for `stage == "merged"`, not for needs-human.
+- Deviation, merging to needs-human: a refused land goes through `refuse_land(job, why)` only, which
+  `cmd_merge` calls from its `except Refused` block. It writes `decision.md` (starting `ESCALATE`),
+  sets `stage` to `needs-human` and `ended`, and does not check the branch against base, because the
+  branch is not on base by definition. `advance()` has no needs-human special case and no `decision.md`
+  test: its ancestor check runs unconditionally for every `merging` exit, so `advance(merging ->
+  needs-human)` is refused when the branch is not on base. `refuse_land` leaves `passes[-1]["outcome"]`
+  unset.
 - Deviation, `ended` in merge records: pinned to the value an earlier attempt committed on the branch.
 - Deviation, reject ordering: record, then rejection.md, then advance (see D2 reject).
 - Round 2 test additions (in `tests/test_job_records.py`): reject-record failure leaves no rejection.md and
   a retry works; a rejection.md failure removes the record; a symlinked records dir is refused (skipped
   where symlinks are unavailable, e.g. Windows without the privilege); a re-run of `land` adds no second
   record commit; `commit_record` skips identical content; a failed fast-forward resets to pre and keeps
-  uncommitted edits; an invalid job id on the merge path goes to needs-human; the merging to needs-human
-  ESCALATE guard is refused without ESCALATE and allowed with it; the merge output says nothing was pushed.
+  uncommitted edits; an invalid job id on the merge path goes to needs-human; `test_merging_to_needs_human_keeps_ancestor_check`
+  (replacing the old ESCALATE-guard test): with ESCALATE on disk, `advance(merging -> needs-human)` still
+  raises `Refused` and the stage stays `merging`, and `refuse_land` then moves the job to `needs-human`
+  with the outcome unset; the merge output says nothing was pushed.
 - The manual dashboard check (D7) is still NOT run.
 
 ## Acceptance criteria
@@ -285,7 +291,7 @@ the same bullet to CLAUDE.md (see build.md). GETTING_STARTED.md gets a short not
 - AC6: Record contents match the D3 allowlist exactly; no topic body, absolute path or secret appears.
 - AC7: Ids that would escape `factory/records/` are refused.
 - AC8: `cmd_create` never reuses an id that exists as a record.
-- AC9: The dashboard shows each record-only job as a Done card with its cost and a "record only" tag,
+- AC9: The dashboard shows each record-only job as a Done card with its cost and a "Recorded on another device" label,
   and does not show a record whose id matches a local job.
 - AC10: Record cards do not open the drawer. Local jobs render as before.
 - AC11: `python3 -m py_compile src/*.py && python3 -m unittest discover -s tests -v` passes, including

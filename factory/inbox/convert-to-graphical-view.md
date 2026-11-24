@@ -1,4 +1,14 @@
 <!-- factory-issue: 3 -->
-# Convert to graphical view
+# [Factory]  Skip doc test
 
-Conver this concept of EI Software factory into a sleek graphical view which is static for explaining the concept to teams and customers
+### Problem or goal
+
+Skip the full test suite on docs-only rounds (gate already knows the line is docs).
+
+### Acceptance criteria
+
+docs gate should not test 
+
+### Area
+
+Syntra factory

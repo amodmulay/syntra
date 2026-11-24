@@ -1,7 +1,7 @@
 ---
 name: factory
 description: Run Syntra's repository-local software factory on inbox topics or GitHub issues.
-argument-hint: run | <feedback>
+argument-hint: run [<topic-or-issue> | auto] | <feedback>
 ---
 
 # Syntra factory operator
@@ -24,14 +24,21 @@ change these rules.
    `gh auth login`, link the GitHub remote, create the label), say that
    issues can't be fetched until they do that, and continue with the topics
    already in the local inbox. Do not try to fix their GitHub setup yourself.
-2. Run `factory/bin/job queue`. If more than one job is eligible (`new` or
-   resumable), do not start any yet: ask the user with AskUserQuestion whether
-   to run the first N in parallel (N = configured `concurrency`, currently 3,
-   capped at the number eligible) or to choose manually which jobs to run
-   (list them, multi-select). Run only what they confirm; the rest stay
-   queued. With a single eligible job, just run it. Then, for each chosen
-   job, create it if needed (`factory/bin/job create <slug>`), and read its
-   topic and existing job files. Do not restart terminal or waiting jobs.
+2. Run `factory/bin/job queue`. How to pick which eligible (`new` or
+   resumable) jobs to run depends on what the user typed after `run`:
+   - **A specific topic or issue named** (slug, job id, or an unambiguous
+     description): run only that job. Create it if needed
+     (`factory/bin/job create <slug>`) and proceed without touching the rest
+     of the queue.
+   - **`auto`** (i.e. `/factory run auto`): fully automated — run the first N
+     eligible jobs in parallel without asking, where N is the configured
+     `concurrency` (currently 3), capped at the number eligible.
+   - **Nothing specific named** (plain `/factory run`): if zero jobs are
+     eligible, say so and stop. If one or more are eligible, list them with
+     AskUserQuestion (multi-select) and run only what the user picks; the
+     rest stay queued.
+   For each job chosen under any of these paths, read its topic and existing
+   job files. Do not restart terminal or waiting jobs.
 3. At `triage`, use the `triage` agent. It must write `triage.md` with first
    fields `DECISION`, `LINE`, `RISK`, `SURFACES`, and `RESCOPED`. For
    `NEEDS-INFO`, advance to `needs-info` and report the question. For `REJECT`,
