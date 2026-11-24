@@ -524,8 +524,10 @@ def advance(job, stage):
         require(line == want, f"decision.md starts with {line!r}, not {want}")
 
     elif old == "merging":
-        # A failed land escalates from here, and base may not hold the work then.
-        if stage != "needs-human":
+        if stage == "needs-human":  # a failed land: cmd_merge writes decision.md, base may not hold the work
+            line = first_line(pass_dir(job) / "decision.md")
+            require(line == "ESCALATE", "escalate first: a failed land writes decision.md")
+        else:
             require(run(["git", "merge-base", "--is-ancestor", job["branch"], BASE], check=False).returncode == 0,
                     f"{job['branch']} isn't on {BASE} yet")
         if stage == "spec":  # handoff to the next line

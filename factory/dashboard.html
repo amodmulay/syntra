@@ -767,7 +767,12 @@ async function loadRecords() {
     try {
       const parsed = JSON.parse(text)
       if (parsed && typeof parsed.id === 'string' && RECORD_ID.test(parsed.id) &&
-          RECORD_STAGES.has(parsed.stage) && typeof parsed.title === 'string') rec = parsed
+          RECORD_STAGES.has(parsed.stage) && typeof parsed.title === 'string') {
+        // models feeds modelsChip, which needs numeric calls and tokens; anything else drops the chip.
+        if (!Array.isArray(parsed.models) ||
+            !parsed.models.every((m) => m && typeof m.tokens === 'number' && typeof m.calls === 'number')) parsed.models = []
+        rec = parsed
+      }
     } catch { rec = null }
     recordCache.set(name, rec)
   }
