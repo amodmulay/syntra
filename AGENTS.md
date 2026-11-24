@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This repository is Syntra, a software factory. The minimal calculator sample is only a throwaway fixture for quick end-to-end tests of the factory, not the product. Syntra issues may update the factory itself through the same reviewed workflow. The calculator's functions are `add(a, b)` (sum of a and b), `subtract(a, b)` (a - b), `multiply(a, b)` (product of a and b), `divide(a, b)` (a / b; raises `ZeroDivisionError` when b is 0), and `integrate(f, a, b, n=1000)` (approximates the integral of f from a to b with the trapezoidal rule over n subintervals; raises `ValueError` when n < 1).
+This repository is Syntra, a software factory. The minimal calculator sample is only a throwaway fixture for quick end-to-end tests of the factory, not the product. Syntra issues may update the factory itself through the same reviewed workflow. The calculator's functions are `add(a, b)` (sum of a and b), `subtract(a, b)` (a - b), `multiply(a, b)` (product of a and b), `divide(a, b)` (a / b; raises `ZeroDivisionError` when b is 0), and `integrate(f, a, b, n=1000)` (approximates the integral of f from a to b with the trapezoidal rule over n subintervals; raises `ValueError` when n < 1), `sin(x)` (sine of x, with x an angle in radians; returns `math.sin(x)`).
 
 - **Setup**: nothing to install. `src/calculator.py` and
   `tests/test_calculator.py` use only the standard library.
