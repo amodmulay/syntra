@@ -1,0 +1,49 @@
+{
+  "cost_usd": 0.35,
+  "ended": "2026-11-24T10:13:54Z",
+  "id": "011-keep-finished-job-records-across-devices",
+  "line": "docs",
+  "models": [
+    {
+      "calls": 40,
+      "cost": 0.0455,
+      "model": "claude-haiku-5-5",
+      "step": "build",
+      "tokens": 1199063
+    },
+    {
+      "calls": 145,
+      "cost": 0.1651,
+      "model": "claude-haiku-5-5",
+      "step": "other",
+      "tokens": 3388202
+    },
+    {
+      "calls": 28,
+      "cost": 0.0454,
+      "model": "claude-haiku-5-5",
+      "step": "review-security",
+      "tokens": 1800046
+    },
+    {
+      "calls": 55,
+      "cost": 0.0892,
+      "model": "claude-haiku-5-5",
+      "step": "spec",
+      "tokens": 2315661
+    }
+  ],
+  "pass": 2,
+  "stage": "merged",
+  "started": "2026-11-24T07:07:52Z",
+  "topic": "keep-finished-job-records-across-devices",
+  "triage": {
+    "decision": "ACCEPT",
+    "line": "build",
+    "risk": "high",
+    "surfaces": [
+      "ui",
+      "security"
+    ]
+  }
+}
