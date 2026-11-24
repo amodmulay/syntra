@@ -110,7 +110,9 @@ inbox:
 1. Install the GitHub CLI: <https://cli.github.com/>
 2. Sign in: `gh auth login`
 3. Make sure the project has a GitHub remote: `git remote -v` should list one
-   (otherwise `git remote add origin "https://github.com/<owner>/<repo>.git"`).
+   (otherwise `git remote add origin "https://github.com/<owner>/<repo>.git"`,
+   replacing `<owner>` with your GitHub user or organisation name and `<repo>`
+   with the repository name).
 4. Create the label once: `gh label create factory`
 
 Jira and other trackers are not supported yet; they are planned as a later
@@ -182,11 +184,13 @@ cost.
 - **Rejection:** the record is written to the main checkout (the repository root
   on the base branch, where you run `/factory`, not a `.worktrees/` job checkout)
   but not committed. It reaches other machines only after you commit it and push.
-  Commit it with the two commands that `job reject` prints, which already contain
-  the real repository path and job id. If you copy the template below instead,
-  replace both placeholders, `<repo root>` (the repository root path) and
-  `<job-id>` (the job id), with real values. Keep the double quotes around every
-  path and message, so the shell never reads the angle brackets as redirection:
+  Commit it with the two commands that `job reject` prints. They already contain
+  the real repository path and job id, but the record path is printed without
+  quotes, so put double quotes around it when you run them. If you copy the
+  template below instead, replace both placeholders, `<repo root>` (the
+  repository root path) and `<job-id>` (the job id), with real values. Keep the
+  double quotes around every path and message, so the shell never reads the
+  angle brackets as redirection:
 
   ```
   git -C "<repo root>" add -- "factory/records/<job-id>.json"
