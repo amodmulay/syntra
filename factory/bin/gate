@@ -18,6 +18,7 @@ import shutil
 import functools
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import time
@@ -50,6 +51,27 @@ def load_job(job_id):
     return json.loads((FACTORY / "jobs" / job_id / "job.json").read_text())
 
 
+# Same resolution as factory/bin/job's worktree_path (a parity test keeps them in step).
+ID_RE = r"[0-9]{3,}-[a-z0-9][a-z0-9-]*"
+
+
+def worktree_path(job):
+    """Where git and checks run: REPO/.worktrees/<id>. The stored job["worktree"] is
+    never used, and REPO is never a fallback. Read-only. Refusal exits 2."""
+    stored = job.get("worktree")
+    job_id = job.get("id")
+    if not isinstance(job_id, str) or not re.fullmatch(ID_RE, job_id):
+        die(f"job id {job_id!r} isn't a valid job id")
+    root = REPO / ".worktrees"
+    path = root / job_id
+    if path.resolve() != root.resolve() / job_id:  # refuses a symlink at the id
+        die(f"{job_id}: worktree path escapes {root}")
+    if not path.is_dir():
+        die(f"{job_id}: no worktree at {path} (job.json has {stored!r}). "
+            "Create it on this machine or run the step where the worktree exists.")
+    return str(path)
+
+
 def checks_script(job):
     line = CONFIG["lines"][job["line"]]
     return REPO / line["checks"]
@@ -77,7 +99,7 @@ def run_checks(worktree, script):
 
 def gate(job_id, merge):
     job = load_job(job_id)
-    worktree = job["worktree"]
+    worktree = worktree_path(job)
     if job["round"] < 1:
         die(f"{job_id} hasn't started a build round")
     pass_dir = FACTORY / "jobs" / job_id / f"{job['pass']:02d}-{job['line']}"
@@ -117,7 +139,7 @@ def hook():
     prompt = content if isinstance(content, str) else " ".join(b.get("text", "") for b in content)
     job_id = prompt.split("Job: ", 1)[1].split(".", 1)[0]
     job = load_job(job_id)
-    code, log, _ = run_checks(job["worktree"], checks_script(job))
+    code, log, _ = run_checks(worktree_path(job), checks_script(job))
     if code != 0:
         tail = "\n".join(log.rstrip().splitlines()[-40:])
         print(f"this line's checks fail in your worktree (exit {code}). The gate will reject this "

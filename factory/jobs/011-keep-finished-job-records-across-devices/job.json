@@ -1,0 +1,52 @@
+{
+  "id": "011-keep-finished-job-records-across-devices",
+  "topic": "keep-finished-job-records-across-devices",
+  "title": "Keep finished job records across devices",
+  "stage": "build",
+  "line": "build",
+  "pass": 1,
+  "passes": [
+    {
+      "pass": 1,
+      "line": "build",
+      "outcome": null
+    }
+  ],
+  "handoff_to": null,
+  "branch": "factory/011-keep-finished-job-records-across-devices",
+  "worktree": "D:\\repo\\syntra\\.worktrees\\011-keep-finished-job-records-across-devices",
+  "round": 2,
+  "round_limit": 3,
+  "triage": {
+    "decision": "ACCEPT",
+    "line": "build",
+    "rescoped": true,
+    "risk": "high",
+    "surfaces": [
+      "ui",
+      "security"
+    ]
+  },
+  "agents": {
+    "reviewers": {
+      "code": "haiku",
+      "ux": "haiku",
+      "ui": "haiku",
+      "security": "haiku"
+    }
+  },
+  "gate": null,
+  "reviews": {},
+  "cost_usd": 0.0,
+  "models": [],
+  "started": "2026-11-24T07:07:52Z",
+  "ended": null,
+  "interventions": {
+    "answers": 0,
+    "feedback": 0,
+    "rejected": false,
+    "approvals": 0,
+    "waiting": false,
+    "total": 0
+  }
+}

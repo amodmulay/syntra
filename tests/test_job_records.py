@@ -85,7 +85,8 @@ class RecordTestCase(unittest.TestCase):
         """A job with its own worktree and one commit of work, ready for `cmd_merge` or `cmd_reject`."""
         job.INBOX.mkdir(parents=True, exist_ok=True)
         (job.INBOX / f"{topic}.md").write_text(f"# Add a thing\n\n{SECRET_BODY}\n")
-        worktree = self.tmp / "worktrees" / job_id
+        # Local worktrees live under REPO/.worktrees; worktree_path() refuses anything else.
+        worktree = self.repo / ".worktrees" / job_id
         branch = f"factory/{job_id}"
         self.git("worktree", "add", "-b", branch, str(worktree), "main")
         (worktree / "change.txt").write_text(f"work for {job_id}\n")
@@ -302,18 +303,18 @@ class JobRecordTests(RecordTestCase):
         self.assertEqual(self.read_job("001-new+topic")["stage"], "needs-human")
         self.assertFalse(job.RECORDS.exists())
         decision = (job.pass_dir(j) / "decision.md").read_text()
-        self.assertIn("refusing to write a record", decision)
+        self.assertIn("isn't a valid job id", decision)
 
-    def test_merging_to_needs_human_requires_escalate(self):
+    def test_merging_to_needs_human_keeps_ancestor_check(self):
+        # advance() never special-cases needs-human: even with ESCALATE on disk, the branch
+        # must be on base. A refused land goes through refuse_land() only.
         j = self.make_job(line="docs", stage="merging")
         decision = job.pass_dir(j) / "decision.md"
-        with self.assertRaises(job.Refused):
-            job.advance(j, "needs-human")
-        decision.write_text("APPROVE\n\n## Summary\nok\n")
-        with self.assertRaises(job.Refused):
-            job.advance(j, "needs-human")
         decision.write_text("ESCALATE\n\n## Why\nthe land failed\n")
-        moved = job.advance(j, "needs-human")
+        with self.assertRaises(job.Refused):
+            job.advance(j, "needs-human")
+        self.assertEqual(j["stage"], "merging")
+        moved = job.refuse_land(j, "the land failed")
         self.assertEqual(moved["stage"], "needs-human")
         self.assertIsNone(moved["passes"][-1]["outcome"])
 

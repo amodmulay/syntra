@@ -86,7 +86,9 @@ def now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def run(cmd, cwd=REPO, check=True):
+def run(cmd, cwd=None, check=True):
+    if cwd is None:  # resolved at call time, so REPO can be redirected (tests)
+        cwd = REPO
     res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if check and res.returncode != 0:
         raise Refused(f"`{' '.join(cmd)}` failed: {(res.stderr or res.stdout).strip()}")
@@ -94,7 +96,7 @@ def run(cmd, cwd=REPO, check=True):
 
 
 def git(job, *args, check=True):
-    return run(["git", *args], cwd=job["worktree"], check=check)
+    return run(["git", *args], cwd=worktree_path(job), check=check)
 
 
 def require(cond, msg):
@@ -116,6 +118,50 @@ def pass_dir(job):
 
 def round_dir(job, n=None):
     return pass_dir(job) / f"round-{n or job['round']}"
+
+
+ID_RE = r"[0-9]{3,}-[a-z0-9][a-z0-9-]*"
+
+
+def local_worktree_path(job):
+    """REPO/.worktrees/<id>, validated. The stored job["worktree"] is never used:
+    it may name a path on another machine, or a directory outside .worktrees/.
+    No existence check; writes nothing."""
+    job_id = job.get("id")
+    if not isinstance(job_id, str) or not re.fullmatch(ID_RE, job_id):
+        raise Refused(f"job id {job_id!r} isn't a valid job id")
+    root = REPO / ".worktrees"
+    path = root / job_id
+    if path.resolve() != root.resolve() / job_id:  # refuses a symlink at the id
+        raise Refused(f"{job_id}: worktree path escapes {root}")
+    return path
+
+
+def existing_worktree(job):
+    """The local worktree directory for this job, or None. Never raises, never writes."""
+    try:
+        path = local_worktree_path(job)
+    except Refused:
+        return None
+    return str(path) if path.is_dir() else None
+
+
+def worktree_path(job):
+    """Where git steps run: the job's local REPO/.worktrees/<id>. Never falls back
+    to REPO and never uses the stored path. Read-only."""
+    stored = job.get("worktree")
+    path = local_worktree_path(job)
+    if not path.is_dir():
+        raise Refused(f"{job['id']}: no worktree at {path} (job.json has {stored!r}). "
+                      "Create it on this machine or run the step where the worktree exists.")
+    return str(path)
+
+
+def registered_worktrees():
+    """Real paths of the worktrees git has registered for REPO."""
+    out = run(["git", "worktree", "list", "--porcelain"]).stdout
+    return {os.path.realpath(line[len("worktree "):])
+            for line in out.splitlines() if line.startswith("worktree ")}
 
 
 def topic_path(slug):
@@ -405,6 +451,18 @@ def escalate(job, why):
     (pass_dir(job) / "decision.md").write_text(f"ESCALATE\n\n## Why\n{why}\n")
 
 
+def refuse_land(job, why):
+    """Private: the refused-land edge, merging -> needs-human. Skips the ancestor
+    check because the branch is not on BASE by definition. Only cmd_merge calls
+    this, from its `except Refused` block. No CLI verb or main() branch may use it."""
+    require(job["stage"] == "merging",
+            f"{job['id']}: refuse_land needs merging, not {job['stage']}")
+    escalate(job, why)
+    job["stage"] = "needs-human"
+    job["ended"] = now()
+    return job
+
+
 def check_reviews_done(job):
     rd = round_dir(job)
     missing = [r for r in reviewers(job) if not (rd / f"review-{r}.md").exists()]
@@ -423,8 +481,9 @@ def next_round(job):
 def start_pass(job, line):
     """Give the job a worktree on its base and start a visit to `line`."""
     require(line in LINES, f"no line {line!r} in config.json ({', '.join(LINES)})")
-    Path(job["worktree"]).parent.mkdir(parents=True, exist_ok=True)
-    run(["git", "worktree", "add", "-b", job["branch"], job["worktree"], BASE])
+    target = local_worktree_path(job)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    run(["git", "worktree", "add", "-b", job["branch"], str(target), BASE])
     job["pass"] = len(job["passes"]) + 1
     job["line"] = line
     job["passes"].append({"pass": job["pass"], "line": line, "outcome": None})
@@ -436,8 +495,11 @@ def start_pass(job, line):
 
 
 def drop_worktree(job):
-    if Path(job["worktree"]).exists():
-        run(["git", "worktree", "remove", "--force", job["worktree"]])
+    # Only a git-registered local worktree is removed. A missing path, or a plain
+    # directory git does not know about, is skipped so the transition still completes.
+    path = existing_worktree(job)
+    if path is not None and os.path.realpath(path) in registered_worktrees():
+        run(["git", "worktree", "remove", "--force", path])
     run(["git", "branch", "-D", job["branch"]], check=False)
 
 
@@ -524,22 +586,13 @@ def advance(job, stage):
         require(line == want, f"decision.md starts with {line!r}, not {want}")
 
     elif old == "merging":
-        if stage == "needs-human":
-            # A failed land. Base may not hold the work, so the only proof is the ESCALATE
-            # decision that cmd_merge writes before it calls here (deliberate deviation from
-            # the spec's "branch is on base" check; see build.md).
-            line = first_line(pass_dir(job) / "decision.md")
-            require(line == "ESCALATE",
-                    f"{job['id']}: the failed land has not written its ESCALATE decision "
-                    f"(decision.md says {line!r}); run `job merge {job['id']}` to land it again")
-        else:
-            require(run(["git", "merge-base", "--is-ancestor", job["branch"], BASE], check=False).returncode == 0,
-                    f"{job['branch']} isn't on {BASE} yet")
+        require(run(["git", "merge-base", "--is-ancestor", job["branch"], BASE], check=False).returncode == 0,
+                f"{job['branch']} isn't on {BASE} yet")
         if stage == "spec":  # handoff to the next line
             job["passes"][-1]["outcome"] = f"handed off to {job['handoff_to']}"
             drop_worktree(job)
             start_pass(job, job["handoff_to"])
-        elif stage == "merged":
+        else:
             job["passes"][-1]["outcome"] = "merged"
 
     elif old == "needs-human":
@@ -773,8 +826,7 @@ def cmd_merge(job):
         land(job, record=not target)  # a handoff is not the final line: no record yet
     except Refused as e:
         why = str(e)
-        escalate(job, why)
-        save(sync(advance(job, "needs-human")))
+        save(sync(refuse_land(job, why)))
         print(f"{job['id']}: needs-human: {why.splitlines()[0]}")
         return
     if target:

@@ -32,7 +32,9 @@ Things worth knowing:
 - **Lines** are workflows. `build` changes code; `docs` changes documentation.
   `build` hands finished work to `docs` automatically.
 - **Waiting is normal.** A job can stop at `needs-info` (triage has a
-  question) or `needs-human` (the approver wants a person to decide).
+  question) or `needs-human` (the approver wants a person to decide, or an
+  approved job could not land: its branch conflicts with the base branch, or
+  the gate fails after it is synced with the base branch).
 - **Nothing is pushed.** Work lands on your local base branch only.
 - **Runs are manual.** Filing a request does not start an agent.
 - **Models** are set per agent in `.claude/agents/*.md` (`model:`) and per
@@ -233,6 +235,11 @@ Stages: `triage`, `needs-info`, `spec`, `build`, `gate`, `review`, `approve`,
   `<pass>/decision.md`, then answer through `/factory`.
 - **Gate keeps failing:** read `<pass>/round-N/checks.log`. The job stops
   after `max_rounds` (3) and waits for a human.
+- **Approved job stopped at needs-human:** its branch conflicts with the base
+  branch, or the gate failed after syncing with it. `<pass>/decision.md`
+  starts with `ESCALATE`, and its `## Why` section has the git or gate output.
+  Nothing was landed and the worktree and branch are kept. Answer through
+  `/factory` (feedback sends the job back to the builder) or reject it.
 - **Dashboard is empty:** it must be served from the `factory/` folder, and
   `factory/jobs/` only exists after the first job is created.
 - **No GitHub issues arrive:** `gh` is missing or not signed in. Local inbox

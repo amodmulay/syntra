@@ -157,7 +157,10 @@ it means: resync that branch with the base branch, rerun the gate, then
 fast-forward the base branch onto it — all through `factory/bin/job merge`,
 which is the only thing allowed to touch the base branch. The user's main
 checkout is never dirtied while a job is running, and nothing but that one
-script ever moves it.
+script ever moves it. If the resync conflicts, or the gate fails after it,
+`job merge` refuses the landing: the base branch stays where it was, the job
+ends at `needs-human` with the git or gate output in `decision.md` (its first
+line is `ESCALATE`), and its worktree and branch are kept.
 
 **A human is a conversation partner, not someone who has to click merge
 somewhere.** Since there's no hosted pull request to approve by merging,

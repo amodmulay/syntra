@@ -193,7 +193,9 @@ Then tell them, briefly:
   has a `handoff`) moves on to the next line automatically.
 - Anything the approver isn't sure about waits as `needs-human` — read
   `factory/jobs/<id>/<pass>/decision.md`, then reply with feedback or a
-  rejection through `/factory <anything>`.
+  rejection through `/factory <anything>`. An approved job whose merge is
+  refused (a conflict with the base branch, or a gate failure after syncing
+  with it) also waits as `needs-human`, and its `decision.md` gives the reason.
 - Every step currently runs on Haiku (see `model:` in `.claude/agents/*.md` and
   `routing` in `factory/config.json`). If you switch triage to a larger model,
   note that depending on your plan it may bill against usage credits rather
