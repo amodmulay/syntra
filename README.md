@@ -222,6 +222,10 @@ in separate `.worktrees/<job-id>` checkouts and land approved changes on the
 configured local base branch. The workflow does not push commits to GitHub.
 Jobs waiting for clarification or a human decision remain in the corresponding
 waiting state; provide an answer or feedback through `/factory` in Claude Code.
+An approved job whose branch cannot land (it conflicts with the base branch, or
+the gate fails after it is synced with the base branch) also waits at
+`needs-human`, with the reason in `<pass>/decision.md`; the base branch is left
+unchanged.
 
 ### Update Syntra in a project
 
