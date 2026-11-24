@@ -1,0 +1,34 @@
+{
+  "cost_usd": 0.34,
+  "ended": "2026-11-24T13:39:39Z",
+  "id": "1000-set-github-issue-done-status-on-merge",
+  "line": "docs",
+  "models": [
+    {
+      "calls": 5,
+      "cost": 0.0073,
+      "model": "claude-haiku-5-5",
+      "step": "other",
+      "tokens": 125863
+    },
+    {
+      "calls": 18,
+      "cost": 0.3332,
+      "model": "claude-sonnet-5",
+      "step": "other",
+      "tokens": 492353
+    }
+  ],
+  "pass": 2,
+  "stage": "merged",
+  "started": "2026-11-24T13:16:37Z",
+  "topic": "set-github-issue-done-status-on-merge",
+  "triage": {
+    "decision": "ACCEPT",
+    "line": "build",
+    "risk": "medium",
+    "surfaces": [
+      "security"
+    ]
+  }
+}
