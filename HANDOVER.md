@@ -12,7 +12,7 @@ Both pushes succeeded. On the other machine you can pick up job 011 with a `git 
 1. `git pull` on `main`.
 2. `git fetch origin factory/011-keep-finished-job-records-across-devices`.
 3. Recreate the worktree: `git worktree add .worktrees/011-keep-finished-job-records-across-devices factory/011-keep-finished-job-records-across-devices`.
-4. `job.json` records this machine's absolute Windows path for the worktree (`D:\repo\syntra\...`). If your repo lives elsewhere there, check whether `factory/bin/job` accepts the old path. I didn't test this.
+4. `job.json` still stores the other machine's absolute worktree path (`D:\repo\syntra\...`), but `factory/bin/job` and `factory/bin/gate` ignore it. Git steps run in `.worktrees/011-keep-finished-job-records-across-devices` in this machine's repo, which is the worktree from step 3. Do not edit `job.json`; no change is needed. If that worktree is missing, the step refuses and says so, so create it as in step 3 first.
 5. Run `/factory run` to resume at `build` (round 2).
 
 Before building, read `01-build/round-1/review-*.md` and run the checks on `409b777`. Round 2 was cut off before `build.md` or the checks were redone.
