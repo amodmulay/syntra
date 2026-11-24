@@ -1,0 +1,4 @@
+<!-- factory-issue: 6 -->
+# Let reviewer agents write their review files
+
+The reviewer agents (`.claude/agents/reviewer-*.md`) are limited to the Read and Bash tools, but their prompts and the factory skill tell them to write `round-N/review-<name>.md`. In practice all four reviewers in job 011 round 1 returned their findings as text, said they could not write the file, and the operator had to transcribe the reports by hand, which breaks unattended runs. Fix this without giving reviewers the ability to change source: either add a restricted write path (for example a `factory/bin/job review <id> <name>` command that takes the report on stdin and writes only that round's review file) and tell the reviewers to use it, or add the Write tool with a prompt rule limited to the one review file. Prefer the first option, since `factory/bin/job` is already the single writer of job state. Update the reviewer prompts and the factory skill, and add a focused test.

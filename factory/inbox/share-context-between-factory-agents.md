@@ -1,0 +1,4 @@
+<!-- factory-issue: 5 -->
+# Stop every factory agent re-reading the same files
+
+Each stage is a cold-start agent that re-reads CLAUDE.md, AGENTS.md, the playbooks and often `factory/bin/job` and `dashboard.html`. In job 011 the spec step alone used 55 model calls and about 2.3M tokens, and triage used 13 tool calls for a small topic. Reduce that. Have `factory/bin/job` (or `factory/bin/route`) write a short per-job `context.md` once, holding the relevant boundaries from `_global.md` and the line playbook, the protected paths, and the checks command, and change the agent prompts to read that file first and open other files only when the spec names them. Do not weaken any boundary: `_global.md` stays authoritative and the context file must be generated from it, never hand-written. Measure calls and tokens per step before and after on one small job and record the numbers in the build report.
