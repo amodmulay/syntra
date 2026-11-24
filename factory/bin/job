@@ -25,7 +25,9 @@ Usage:
 A topic pulled in from GitHub (factory/bin/pull) carries a
 `<!-- factory-issue: N -->` marker on its first line. `job merge` reads that
 marker and closes the issue, best-effort, once the job has no further line to
-run — see `github_issue` below.
+run — see `github_issue` below. The final merge also adds the `factory-done` label,
+and a reject adds `factory-rejected` plus a comment with the reason. These `gh`
+calls are best-effort: a missing or failing `gh` never changes the outcome.
 """
 
 import functools
@@ -828,6 +830,56 @@ def close_linked_issue(job):
         pass  # gh missing, not authenticated, or the issue already changed state — not fatal
 
 
+def linked_issue_number(topic):
+    """The GitHub issue number for a topic, or None. Never raises."""
+    try:
+        return github_issue(topic)
+    except (OSError, IndexError, ValueError):  # missing or empty topic file
+        return None
+
+
+def gh_quiet(args, stdin=None):
+    """Run `gh` with an argv list (never a shell). True on exit 0, False otherwise.
+
+    gh's stdout and stderr are never printed or stored: they can hold account or
+    repo detail. stdin is passed as text, or closed when there is none.
+    """
+    kwargs = {"input": stdin} if stdin is not None else {"stdin": subprocess.DEVNULL}
+    try:
+        res = subprocess.run(["gh", *args], cwd=REPO, capture_output=True, text=True,
+                             encoding="utf-8", errors="replace", **kwargs)
+    except (OSError, subprocess.SubprocessError, Refused):  # gh missing or unusable
+        return False
+    return res.returncode == 0
+
+
+def add_issue_label(n, label, description):
+    """Add a fixed factory label to issue n. The label is created only if adding it fails. Never raises."""
+    add = ["issue", "edit", str(n), "--add-label", label]
+    if gh_quiet(add):
+        return
+    gh_quiet(["label", "create", label, "--description", description])
+    gh_quiet(add)
+
+
+def label_linked_issue(topic, label, description):
+    """Best-effort: label the GitHub issue a topic came from. Never raises."""
+    n = linked_issue_number(topic)
+    if n is None:
+        return
+    add_issue_label(n, label, description)
+
+
+def reject_linked_issue(topic, reason):
+    """Best-effort: comment the operator's reject reason on the linked issue, then label it. Never raises."""
+    n = linked_issue_number(topic)
+    if n is None:
+        return
+    body = f"Factory: rejected.\n\nReason from the operator:\n\n{reason.strip()}\n"
+    gh_quiet(["issue", "comment", str(n), "--body-file", "-"], stdin=body)
+    add_issue_label(n, "factory-rejected", "Rejected by the factory")
+
+
 def cmd_merge(job):
     job = sync(job)
     if job["stage"] in {"approve", "needs-human"}:
@@ -852,6 +904,7 @@ def cmd_merge(job):
         close_linked_issue(job)
         job = advance(job, "merged")
         save(sync(job))
+        label_linked_issue(job["topic"], "factory-done", "Merged into the base branch by the factory")
         print(f"{job['id']}: merged into {BASE}")
         print(f"  record factory/records/{job['id']}.json was committed with the work; nothing was pushed.")
 
@@ -993,6 +1046,7 @@ def cmd_reject(job, text):
         die(f"couldn't write {rejection.name} ({e}); the record was removed. "
             f"Nothing was rejected: {job['id']} is still {job['stage']}. {retry}")
     save(sync(advance(sync(job), "rejected")))
+    reject_linked_issue(job["topic"], text)
     rel = f"factory/records/{path.name}"
     root = REPO.as_posix()
     print(f"{job['id']}: rejected. The record {rel} is written but NOT committed, so it does not "

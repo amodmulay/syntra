@@ -211,6 +211,19 @@ Jobs finished before this feature have no record. A record does not stop
 `/factory run` from starting a topic again: a topic file that still sits in
 another machine's inbox is treated as new there.
 
+### GitHub labels on the linked issue
+
+A topic pulled in from a GitHub issue has its issue updated when its job ends:
+
+- **Final merge:** the linked issue gets the `factory-done` label. The existing
+  comment and close are unchanged.
+- **Rejection:** the linked issue gets the `factory-rejected` label and a comment
+  with the reject reason. That reason is public to anyone who can read the issue.
+- The labels are created on first use if they are missing. This needs `gh` signed
+  in with permission to edit issues and labels. If `gh` is missing or fails, the
+  merge or reject still succeeds and nothing is retried.
+- Nothing is pushed, and no GitHub Project board is changed.
+
 ## View the runs
 
 **Dashboard** (a board with a column per stage, live every 2 seconds):
