@@ -160,6 +160,10 @@ for example `/factory the Fourier function should be a DFT of a list`. The
 operator routes it to the right job: `needs-info` goes back to triage,
 `needs-human` goes back to build, and you can also reject a waiting job.
 
+A rejected job writes `factory/records/<job-id>.json`, but nothing commits or
+pushes it. Commit that file by hand (the command the reject prints) if you want
+other machines to see it. Finished merges commit their record with the work.
+
 ## View the runs
 
 **Dashboard** (a board with a column per stage, live every 2 seconds):

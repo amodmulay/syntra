@@ -30,9 +30,7 @@ landing approved work on the base branch or handing it to another line
 (`build` → `docs` by default).
 
 - State: `factory/jobs/<job-id>/` (gitignored). Only `factory/bin/job`
-  writes it. `factory/records/<job-id>.json` is a tracked, committed summary
-  written by `factory/bin/job` at final merge (committed with the work) and at
-  reject (written uncommitted; the operator must commit it by hand).
+  writes it.
 - Checks: `factory/checks.sh`.
 - Boundaries: `factory/playbooks/_global.md` and one per line.
 - Dashboard: `/factory run` starts it automatically (`factory/bin/dashboard`,

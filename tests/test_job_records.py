@@ -10,7 +10,9 @@ import contextlib
 import importlib.machinery
 import importlib.util
 import io
+import itertools
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -24,7 +26,7 @@ job = importlib.util.module_from_spec(spec)
 loader.exec_module(job)
 
 SECRET_BODY = "SECRET BODY TEXT never belongs in a record"
-RECORD_KEYS = {"id", "topic", "title", "stage", "line", "pass", "triage", "started", "ended", "cost_usd", "models"}
+RECORD_KEYS = {"id", "topic", "stage", "line", "pass", "triage", "started", "ended", "cost_usd", "models"}
 TRIAGE_KEYS = {"decision", "line", "risk", "surfaces"}
 
 
@@ -184,7 +186,9 @@ class JobRecordTests(RecordTestCase):
     def test_reject_writes_uncommitted_record(self):
         j = self.make_job(line="docs", stage="needs-human")
         before = self.base_sha()
-        self.quiet(job.cmd_reject, j, "not wanted")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            job.cmd_reject(j, "not wanted")
         record_path = job.RECORDS / "001-new-topic.json"
         self.assertTrue(record_path.exists())
         self.assertEqual(json.loads(record_path.read_text())["stage"], "rejected")
@@ -194,16 +198,132 @@ class JobRecordTests(RecordTestCase):
         self.assertEqual(self.read_job("001-new-topic")["stage"], "rejected")
         self.assertFalse(Path(j["worktree"]).exists())
         self.assertEqual(self.git("branch", "--list", j["branch"]), "")
+        # Printed follow-up: two separate commands, pathspec on commit, no `&&`.
+        lines = out.getvalue().splitlines()
+        root = self.repo.as_posix()
+        self.assertIn(f'  git -C "{root}" add -- factory/records/001-new-topic.json', lines)
+        self.assertIn(f'  git -C "{root}" commit -m "Record rejected job 001-new-topic" -- factory/records/001-new-topic.json', lines)
+        self.assertNotIn("&&", out.getvalue())
 
     def test_reject_record_failure_keeps_job_waiting(self):
         blocker = self.tmp / "afile"
         blocker.write_text("not a directory")
         self.patch("RECORDS", blocker / "records")
         j = self.make_job(line="docs", stage="needs-human")
-        with self.assertRaises(SystemExit):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             self.quiet(job.cmd_reject, j, "not wanted")
         self.assertEqual(self.read_job("001-new-topic")["stage"], "needs-human")
         self.assertTrue(Path(j["worktree"]).exists())
+        self.assertFalse((job.job_dir("001-new-topic") / "rejection.md").exists())
+        # Fix the cause and re-run: the same command now succeeds.
+        job.RECORDS = self.repo / "factory" / "records"
+        self.quiet(job.cmd_reject, j, "not wanted")
+        self.assertEqual(self.read_job("001-new-topic")["stage"], "rejected")
+
+    def test_reject_removes_record_when_rejection_file_fails(self):
+        j = self.make_job(line="docs", stage="needs-human")
+        (job.job_dir("001-new-topic") / "rejection.md").mkdir()  # a directory: write_text fails
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            self.quiet(job.cmd_reject, j, "not wanted")
+        self.assertFalse((job.RECORDS / "001-new-topic.json").exists())
+        self.assertEqual(self.read_job("001-new-topic")["stage"], "needs-human")
+        self.assertTrue(Path(j["worktree"]).exists())
+
+    def test_write_record_refuses_symlinked_records_dir(self):
+        target = self.tmp / "elsewhere"
+        target.mkdir()
+        link = self.tmp / "linked"
+        try:
+            os.symlink(target, link, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are not available here")
+        with self.assertRaises(job.Refused):
+            job.write_record(link, {"id": "001-x"})
+        with self.assertRaises(job.Refused):
+            job.write_record(link / "records", {"id": "001-x"})
+        self.assertEqual(list(target.iterdir()), [])
+
+    def test_rerun_land_adds_no_second_record_commit(self):
+        j = self.make_job(line="docs", stage="merging")
+        ticks = itertools.count()
+        self.patch("now", lambda: f"2026-11-24T12:00:{next(ticks):02d}Z")  # differs on every call
+        job.land(j, record=True)
+        main_after_first = self.base_sha()
+        branch_after_first = self.git("rev-parse", j["branch"])
+        count_after_first = self.git("rev-list", "--count", "main")
+        job.land(j, record=True)  # a re-run: the record must come out identical
+        self.assertEqual(self.base_sha(), main_after_first)
+        self.assertEqual(self.git("rev-parse", j["branch"]), branch_after_first)
+        self.assertEqual(self.git("rev-list", "--count", "main"), count_after_first)
+        rec = json.loads(self.git("show", "main:factory/records/001-new-topic.json"))
+        self.assertEqual(rec["ended"], "2026-11-24T12:00:00Z")  # the first attempt's value is kept
+
+    def test_commit_record_skips_identical_content(self):
+        j = self.make_job(line="docs", stage="merging")
+        rec = job.job_record({**j, "stage": "merged", "ended": "2026-11-24T12:00:00Z"})
+        self.assertIsNotNone(job.commit_record(j, rec))
+        head = self.git("rev-parse", "HEAD", cwd=Path(j["worktree"]))
+        self.assertIsNone(job.commit_record(j, rec))
+        self.assertEqual(self.git("rev-parse", "HEAD", cwd=Path(j["worktree"])), head)
+
+    def test_failed_fast_forward_resets_branch_and_keeps_edits(self):
+        j = self.make_job(line="docs", stage="merging")
+        worktree = Path(j["worktree"])
+        work_tip = self.git("rev-parse", j["branch"])
+        (worktree / "change.txt").write_text("uncommitted edit\n")
+        (worktree / "scratch.txt").write_text("untracked\n")
+        real_run = job.run
+
+        def refuse_ff(cmd, cwd=None, check=True):
+            if "--ff-only" in cmd:
+                raise job.Refused("simulated fast-forward failure")
+            return real_run(cmd, cwd=cwd, check=check)
+
+        self.patch("run", refuse_ff)
+        before = self.base_sha()
+        self.quiet(job.cmd_merge, j)
+        self.assertEqual(self.base_sha(), before)
+        self.assertEqual(self.git("rev-parse", j["branch"]), work_tip)
+        self.assertEqual((worktree / "change.txt").read_text(), "uncommitted edit\n")
+        self.assertEqual((worktree / "scratch.txt").read_text(), "untracked\n")
+        status = self.git("status", "--porcelain", "--untracked-files=all", cwd=worktree)
+        self.assertEqual({line.strip() for line in status.splitlines()}, {"M change.txt", "?? scratch.txt"})
+        self.assertFalse((worktree / "factory" / "records" / "001-new-topic.json").exists())
+        self.assertEqual(self.read_job("001-new-topic")["stage"], "needs-human")
+        decision = (job.pass_dir(j) / "decision.md").read_text()
+        self.assertTrue(decision.startswith("ESCALATE"))
+        self.assertIn("couldn't write the job record", decision)
+
+    def test_invalid_job_id_on_merge_path_goes_to_needs_human(self):
+        j = self.make_job(line="docs", stage="merging", job_id="001-new+topic")
+        before = self.base_sha()
+        self.quiet(job.cmd_merge, j)
+        self.assertEqual(self.base_sha(), before)
+        self.assertEqual(self.read_job("001-new+topic")["stage"], "needs-human")
+        self.assertFalse(job.RECORDS.exists())
+        decision = (job.pass_dir(j) / "decision.md").read_text()
+        self.assertIn("refusing to write a record", decision)
+
+    def test_merging_to_needs_human_requires_escalate(self):
+        j = self.make_job(line="docs", stage="merging")
+        decision = job.pass_dir(j) / "decision.md"
+        with self.assertRaises(job.Refused):
+            job.advance(j, "needs-human")
+        decision.write_text("APPROVE\n\n## Summary\nok\n")
+        with self.assertRaises(job.Refused):
+            job.advance(j, "needs-human")
+        decision.write_text("ESCALATE\n\n## Why\nthe land failed\n")
+        moved = job.advance(j, "needs-human")
+        self.assertEqual(moved["stage"], "needs-human")
+        self.assertIsNone(moved["passes"][-1]["outcome"])
+
+    def test_merge_output_says_record_committed_and_not_pushed(self):
+        j = self.make_job(line="docs", stage="merging")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            job.cmd_merge(j)
+        self.assertIn("record factory/records/001-new-topic.json was committed with the work; nothing was pushed.",
+                      out.getvalue())
 
     def test_create_numbering_skips_recorded_ids(self):
         job.RECORDS.mkdir(parents=True)
@@ -229,8 +349,9 @@ class JobRecordTests(RecordTestCase):
     def test_dashboard_reads_records_and_dedupes(self):
         text = (REAL_REPO / "factory" / "dashboard.html").read_text(encoding="utf-8")
         self.assertIn("fetchText('records/')", text)
-        self.assertIn("from record", text)
+        self.assertIn("record only", text)  # the visible tag on a record card
         self.assertIn("jobIds", text)
+        self.assertNotIn("parsed.title", text)  # titles are not in records
 
 
 if __name__ == "__main__":

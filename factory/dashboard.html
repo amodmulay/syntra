@@ -166,13 +166,16 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--human) 40%, transparent),
                 0 8px 24px -12px color-mix(in srgb, var(--human) 60%, transparent);
   }
-  .card.done { opacity: .72; }
-  /* Light: opacity would drop muted/faint text under 4.5:1, so Done cards are not
-     faded. The title is set to --muted instead, which keeps the dimmed look. */
-  :root[data-theme="light"] .card.done { opacity: 1; }
-  :root[data-theme="light"] .card.done .feature { color: var(--muted); }
+  /* Done cards are not faded: an opacity fade drops muted text under 4.5:1 in dark.
+     Their text uses --muted (4.68:1 on --card; hover keeps --card so it stays there). */
+  .card.done .feature, .card.done .links { color: var(--muted); }
+  .card.done:hover { background: var(--card); }
   .card.rejected .feature { text-decoration: line-through; text-decoration-color: var(--faint); }
   .flag.wait { color: var(--changes); }
+  /* Read from a record: a neutral tag, not an alarm. Record cards have nothing to open. */
+  .flag.record { color: var(--muted); }
+  .card.record { cursor: default; }
+  .card.record:hover { background: var(--card); transform: none; }
   .card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .num { font-family: var(--mono); font-size: 12px; color: var(--muted); }
   .card-top .num { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -186,7 +189,7 @@
   }
   .feature { font-size: 13px; line-height: 1.4; margin: 0 0 6px; }
   .links { display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--faint); }
-  .meta { display: flex; gap: 10px; margin-top: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
   .meta .line { color: var(--active); }
   .meta .models { color: var(--text); }
   .models-table { margin-top: 8px; border-collapse: collapse; font-family: var(--mono); font-size: 11px; color: var(--muted); }
@@ -475,8 +478,10 @@ function roundRow(job, n, v) {
 }
 
 function elapsed(job) {
+  const start = job.started ? new Date(job.started) : null
+  if (!start || Number.isNaN(start.getTime())) return '—'
   const end = job.ended ? new Date(job.ended) : new Date()
-  const min = Math.max(0, Math.floor((end - new Date(job.started)) / 60000))
+  const min = Math.max(0, Math.floor((end - start) / 60000))
   return min >= 60 ? `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}m` : `${min}m`
 }
 
@@ -514,8 +519,10 @@ function card(job, rounds) {
 
 // A record from factory/records/ for a job with no folder here. Read-only: no data-job,
 // no tabindex, so it never opens the drawer.
+// The label comes from the id alone (the record holds no title): numeric prefix dropped, hyphens as spaces.
 function recordCard(r) {
   const [num, ...slug] = r.id.split('-')
+  const label = slug.join(' ') || r.id
   const risk = r.triage?.risk
   const meta = [
     r.line ? `<span class="line">${esc(r.line)} · pass ${esc(r.pass)}</span>` : '',
@@ -524,14 +531,14 @@ function recordCard(r) {
     `<span>$${(Number(r.cost_usd) || 0).toFixed(2)}</span>`,
     `<span>${elapsed(r)}</span>`,
   ].join('')
+  const flag = r.stage === 'rejected' ? 'rejected · record only' : 'record only'
   return `
-    <article class="card done ${esc(r.stage)}">
+    <article class="card done record ${esc(r.stage)}">
       <div class="card-top">
         <span class="num">${esc(num)} · ${esc(slug.join('-'))}</span>
-        <span class="flag" title="Read from factory/records/ (no job folder on this machine)">from record</span>
+        <span class="flag record" title="Read from factory/records/ (no job folder on this machine)">${flag}</span>
       </div>
-      <p class="feature">${esc(r.title)}</p>
-      <div class="links">${esc(r.topic || '')}.md</div>
+      <p class="feature">${esc(label)}</p>
       <div class="meta">${meta}</div>
     </article>`
 }
@@ -543,20 +550,24 @@ async function render() {
     if (!STAGES.has(job.stage)) { problems.push(`Job ${job.id} has unknown stage "${job.stage}"`); continue }
     const rounds = []
     if (job.pass) for (let n = 1; n <= job.round; n++) rounds.push(roundRow(job, n, await roundVerdicts(job, n)))
-    cards.get(COLUMNS.find((c) => c.stages.includes(job.stage))).push(card(job, rounds))
+    cards.get(COLUMNS.find((c) => c.stages.includes(job.stage))).push({ html: card(job, rounds), at: job.ended || '' })
   }
   // A record whose id is a local job is that job's own summary: the local job wins.
   const jobIds = new Set(jobs.map((j) => j.id))
   const shown = records.filter((r) => !jobIds.has(r.id))
-  for (const r of shown) cards.get(COLUMNS.find((c) => c.stages.includes(r.stage))).push(recordCard(r))
-  // Newest first within a column.
+  for (const r of shown) cards.get(COLUMNS.find((c) => c.stages.includes(r.stage))).push({ html: recordCard(r), at: r.ended })
+  // Done interleaves local and record cards by when they ended. Every column ends up newest first.
+  for (const [c, items] of cards) {
+    if (c.stages.includes('merged')) items.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+    items.reverse()
+  }
   const html = COLUMNS.map((c) => `
     <section class="col ${c.cls || ''}">
       <div class="col-head">
         <h2>${c.label}</h2><span class="who">${c.who}</span>
         <span class="count">${cards.get(c).length || ''}</span>
       </div>
-      ${cards.get(c).reverse().join('') || '<div class="empty">—</div>'}
+      ${cards.get(c).map((x) => x.html).join('') || '<div class="empty">—</div>'}
     </section>`).join('')
   const banner = problems.map((p) => `<div class="banner">${esc(p)}</div>`).join('')
   if (html + banner !== lastRender) {
@@ -767,7 +778,8 @@ async function loadRecords() {
     try {
       const parsed = JSON.parse(text)
       if (parsed && typeof parsed.id === 'string' && RECORD_ID.test(parsed.id) &&
-          RECORD_STAGES.has(parsed.stage) && typeof parsed.title === 'string') {
+          RECORD_STAGES.has(parsed.stage)) {
+        if (typeof parsed.ended !== 'string') parsed.ended = ''  // orders the record among Done cards
         // models feeds modelsChip, which needs numeric calls and tokens; anything else drops the chip.
         if (!Array.isArray(parsed.models) ||
             !parsed.models.every((m) => m && typeof m.tokens === 'number' && typeof m.calls === 'number')) parsed.models = []
