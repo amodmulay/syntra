@@ -123,22 +123,21 @@ ID_RE = r"[0-9]{3,}-[a-z0-9][a-z0-9-]*"
 
 
 def local_worktree_path(job):
-    """REPO/.worktrees/<id>, validated. No existence check; writes nothing."""
+    """REPO/.worktrees/<id>, validated. The stored job["worktree"] is never used:
+    it may name a path on another machine, or a directory outside .worktrees/.
+    No existence check; writes nothing."""
     job_id = job.get("id")
     if not isinstance(job_id, str) or not re.fullmatch(ID_RE, job_id):
         raise Refused(f"job id {job_id!r} isn't a valid job id")
     root = REPO / ".worktrees"
     path = root / job_id
-    if path.resolve().parent != root.resolve():
+    if path.resolve() != root.resolve() / job_id:  # refuses a symlink at the id
         raise Refused(f"{job_id}: worktree path escapes {root}")
     return path
 
 
 def existing_worktree(job):
-    """The worktree git steps should use, or None. Never raises, never writes."""
-    stored = job.get("worktree")
-    if isinstance(stored, str) and stored and Path(stored).is_absolute() and Path(stored).is_dir():
-        return stored
+    """The local worktree directory for this job, or None. Never raises, never writes."""
     try:
         path = local_worktree_path(job)
     except Refused:
@@ -147,16 +146,21 @@ def existing_worktree(job):
 
 
 def worktree_path(job):
-    """Where git steps run. A stored local directory is used as-is; otherwise the
-    job's local REPO/.worktrees/<id>. Never falls back to REPO. Never writes."""
+    """Where git steps run: the job's local REPO/.worktrees/<id>. Never falls back
+    to REPO and never uses the stored path. Read-only."""
     stored = job.get("worktree")
-    if isinstance(stored, str) and stored and Path(stored).is_absolute() and Path(stored).is_dir():
-        return stored
     path = local_worktree_path(job)
     if not path.is_dir():
         raise Refused(f"{job['id']}: no worktree at {path} (job.json has {stored!r}). "
                       "Create it on this machine or run the step where the worktree exists.")
     return str(path)
+
+
+def registered_worktrees():
+    """Real paths of the worktrees git has registered for REPO."""
+    out = run(["git", "worktree", "list", "--porcelain"]).stdout
+    return {os.path.realpath(line[len("worktree "):])
+            for line in out.splitlines() if line.startswith("worktree ")}
 
 
 def topic_path(slug):
@@ -490,8 +494,10 @@ def start_pass(job, line):
 
 
 def drop_worktree(job):
+    # Only a git-registered local worktree is removed. A missing path, or a plain
+    # directory git does not know about, is skipped so the transition still completes.
     path = existing_worktree(job)
-    if path is not None:
+    if path is not None and os.path.realpath(path) in registered_worktrees():
         run(["git", "worktree", "remove", "--force", path])
     run(["git", "branch", "-D", job["branch"]], check=False)
 

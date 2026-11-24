@@ -56,17 +56,15 @@ ID_RE = r"[0-9]{3,}-[a-z0-9][a-z0-9-]*"
 
 
 def worktree_path(job):
-    """Where git and checks run. A stored local directory is used as-is; otherwise
-    REPO/.worktrees/<id>, never REPO. Read-only. Refusal exits 2."""
+    """Where git and checks run: REPO/.worktrees/<id>. The stored job["worktree"] is
+    never used, and REPO is never a fallback. Read-only. Refusal exits 2."""
     stored = job.get("worktree")
-    if isinstance(stored, str) and stored and Path(stored).is_absolute() and Path(stored).is_dir():
-        return stored
     job_id = job.get("id")
     if not isinstance(job_id, str) or not re.fullmatch(ID_RE, job_id):
         die(f"job id {job_id!r} isn't a valid job id")
     root = REPO / ".worktrees"
     path = root / job_id
-    if path.resolve().parent != root.resolve():
+    if path.resolve() != root.resolve() / job_id:  # refuses a symlink at the id
         die(f"{job_id}: worktree path escapes {root}")
     if not path.is_dir():
         die(f"{job_id}: no worktree at {path} (job.json has {stored!r}). "
