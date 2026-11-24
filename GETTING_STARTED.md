@@ -162,23 +162,47 @@ for example `/factory the Fourier function should be a DFT of a list`. The
 operator routes it to the right job: `needs-info` goes back to triage,
 `needs-human` goes back to build, and you can also reject a waiting job.
 
-Each finished job leaves `factory/records/<job-id>.json`. It holds the job's id,
-topic, final stage, line, pass, triage (decision, line, risk and surfaces),
-start and end times, `cost_usd` and the per-step `models` list, and no other
-fields: no topic body, paths or transcripts. A final merge commits the record
-with the work, so it reaches other machines through git. A rejected job's record
-is written to the main checkout but not committed. It reaches other machines only
-after you commit it with the two commands that `job reject` prints, which take
-the form `git -C <repo root> add -- factory/records/<job-id>.json` and
-`git -C <repo root> commit -m "..." -- factory/records/<job-id>.json`. Nothing is
-pushed on either path.
+Each job that reaches a final merge or is rejected leaves
+`factory/records/<job-id>.json`, a small summary with these fields and no others:
+
+- `id`, `topic`, final `stage`, `line`, `pass`;
+- `triage`: the `decision`, `line`, `risk` and `surfaces` values, copied as
+  written in the job's `triage.md`. They are free text, not validated or
+  sanitized;
+- `started` and `ended` times, `cost_usd` and the per-step `models` list.
+
+A record holds no topic body, paths or transcripts. The `cost_usd` and `models`
+values are as of the final merge or reject moment. The record is never rewritten
+afterward, so later usage does not change it, and `job.json` can show a higher
+cost.
+
+- **Final merge:** the record is committed on the job branch, so it lands on the
+  base branch with the work in the same fast-forward. It reaches other machines
+  when you push the base branch and they pull it. Nothing is pushed by the factory.
+- **Rejection:** the record is written to the main checkout (the repository root
+  on the base branch, where you run `/factory`, not a `.worktrees/` job checkout)
+  but not committed. It reaches other machines only after you commit it and push.
+  Commit it with the two commands that `job reject` prints. Replace `<repo root>`
+  with the actual path, keeping the double quotes:
+
+  ```
+  git -C "<repo root>" add -- factory/records/<job-id>.json
+  git -C "<repo root>" commit -m "Record rejected job <job-id>" -- factory/records/<job-id>.json
+  ```
+
+Nothing is pushed on either path. Whoever or whatever later pushes the branch
+carries the record with it, and that step is never automatic.
 
 Records are kept in git history, so anyone who can read the repository can read
-them, and deleting a record file later does not remove it from history. The
-`topic` value is the inbox file name, which is a slug of the first few words of
-the request title. Jobs finished before this feature have no record. A record
-does not stop `/factory run` from starting a topic again: a topic file that still
-sits in another machine's inbox is treated as new there.
+them, and deleting a record file later does not remove it from history.
+
+The `topic` value is the inbox file name without `.md`. It is a slug of the first
+few words of the request title. If a pulled GitHub issue's slug is already taken,
+`factory/bin/pull` adds a `-<issue#>` suffix, so the value can end in one.
+
+Jobs finished before this feature have no record. A record does not stop
+`/factory run` from starting a topic again: a topic file that still sits in
+another machine's inbox is treated as new there.
 
 ## View the runs
 
@@ -195,14 +219,16 @@ starts looking. To start it yourself, or to find the address again:
 python3 factory/bin/dashboard
 ```
 
-Each card shows the verdict of
+Each local job card shows the verdict of
 every round, the models used, cost and elapsed time. Click a card to read the
 job's files (topic, triage, spec, build notes, check logs, reviews, decision)
 and a table of model, calls, tokens and cost per step.
 
 Cards labelled **Recorded on another device** come from `factory/records/`. They
-summarise jobs that have no job folder on this machine, show cost and timing,
-have no detail view, and are hidden when a local job has the same id.
+summarise jobs that have no job folder on this machine. Each shows the id, line
+and pass, risk, models, cost and elapsed time, and rejected records carry a
+**rejected** flag. They have no round verdicts and no detail view, and are hidden
+when a local job has the same id.
 
 The header has a **Light** or **Dark** button next to the status line. It names the theme a click switches to, so it reads "Light" while the dark theme is showing. With no saved choice, the dashboard follows your browser or OS light or dark setting, including changes made while the page is open. A click saves your choice in this browser's local storage for the dashboard's address (scheme, host and port), and a saved choice then wins over the OS setting. If the browser blocks local storage, the choice lasts only until the page is reloaded. The dashboard has no reset control: to follow the OS again, clear the site data for that address or delete the `syntra-factory-theme` key in the browser's developer tools. A saved choice applies to one address only, so the same dashboard on another port, or on `127.0.0.1` instead of `localhost`, keeps its own choice.
 
@@ -244,7 +270,8 @@ Stages: `triage`, `needs-info`, `spec`, `build`, `gate`, `review`, `approve`,
 - **Per job:** `cost_usd` and `models` in `job.json` and on the dashboard.
   These are API-equivalent dollars worked out from Claude Code's transcripts,
   not an actual bill, and they never go down on a re-sync. A finished job's
-  record in `factory/records/` carries the same `cost_usd` and `models` values.
+  record in `factory/records/` carries the `cost_usd` and `models` values as of
+  its final merge or reject, and is not updated after that.
 - **Everything, permanently:** `factory/usage/ledger.jsonl` records every API
   call with model, tokens and dollars, and `factory/usage/USAGE.md` summarises
   it by model and day. The factory adds to it whenever a job is saved. For

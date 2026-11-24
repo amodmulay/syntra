@@ -31,8 +31,12 @@ landing approved work on the base branch or handing it to another line
 
 - State: `factory/jobs/<job-id>/` (gitignored). Only `factory/bin/job`
   writes it.
-- Records: `factory/records/<job-id>.json` is a tracked summary of a finished job. `factory/bin/job`
-  writes it at final merge, committed on the job branch so it lands with the work, and at reject, where it is written to the main checkout but not committed (commit it by hand). Nothing is pushed.
+- Records: `factory/records/<job-id>.json` is a tracked summary of a finished
+  job. `factory/bin/job` writes it at final merge, committed on the job branch
+  so it lands with the work, and at reject, where it is written to the main
+  checkout but not committed (commit it by hand). Nothing is pushed. Its fields
+  are an allowlist defined by `job_record` in `factory/bin/job`, and anyone who
+  can read the repository's history can read every record in it.
 - Checks: `factory/checks.sh`.
 - Boundaries: `factory/playbooks/_global.md` and one per line.
 - Dashboard: `/factory run` starts it automatically (`factory/bin/dashboard`,
