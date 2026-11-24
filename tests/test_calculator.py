@@ -1,10 +1,11 @@
+import math
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from calculator import add, divide, integrate, multiply, subtract
+from calculator import add, divide, integrate, multiply, sin, subtract
 
 
 class TestCalculator(unittest.TestCase):
@@ -37,6 +38,18 @@ class TestCalculator(unittest.TestCase):
             integrate(lambda x: x, 0, 1, n=0)
         with self.assertRaises(ValueError):
             integrate(lambda x: x, 0, 1, n=-5)
+
+    def test_sin(self):
+        cases = [
+            (0, 0.0),
+            (math.pi / 6, 0.5),
+            (math.pi / 2, 1.0),
+            (math.pi, 0.0),
+            (-math.pi / 2, -1.0),
+        ]
+        for x, expected in cases:
+            self.assertAlmostEqual(sin(x), expected, places=9)
+            self.assertAlmostEqual(sin(x), math.sin(x), places=9)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 """A tiny calculator module, used as a scratch target for the factory to build on."""
 
+import math
+
 
 def add(a, b):
     """Return the sum of a and b."""
@@ -30,3 +32,8 @@ def integrate(f, a, b, n=1000):
     for i in range(1, n):
         total += f(a + i * h)
     return h * total
+
+
+def sin(x):
+    """Return the sine of x, where x is an angle in radians."""
+    return math.sin(x)
