@@ -85,7 +85,9 @@ def now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def run(cmd, cwd=REPO, check=True):
+def run(cmd, cwd=None, check=True):
+    if cwd is None:  # resolved at call time, so REPO can be redirected (tests)
+        cwd = REPO
     res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if check and res.returncode != 0:
         raise Refused(f"`{' '.join(cmd)}` failed: {(res.stderr or res.stdout).strip()}")
@@ -93,7 +95,7 @@ def run(cmd, cwd=REPO, check=True):
 
 
 def git(job, *args, check=True):
-    return run(["git", *args], cwd=job["worktree"], check=check)
+    return run(["git", *args], cwd=worktree_path(job), check=check)
 
 
 def require(cond, msg):
@@ -115,6 +117,46 @@ def pass_dir(job):
 
 def round_dir(job, n=None):
     return pass_dir(job) / f"round-{n or job['round']}"
+
+
+ID_RE = r"[0-9]{3,}-[a-z0-9][a-z0-9-]*"
+
+
+def local_worktree_path(job):
+    """REPO/.worktrees/<id>, validated. No existence check; writes nothing."""
+    job_id = job.get("id")
+    if not isinstance(job_id, str) or not re.fullmatch(ID_RE, job_id):
+        raise Refused(f"job id {job_id!r} isn't a valid job id")
+    root = REPO / ".worktrees"
+    path = root / job_id
+    if path.resolve().parent != root.resolve():
+        raise Refused(f"{job_id}: worktree path escapes {root}")
+    return path
+
+
+def existing_worktree(job):
+    """The worktree git steps should use, or None. Never raises, never writes."""
+    stored = job.get("worktree")
+    if isinstance(stored, str) and stored and Path(stored).is_absolute() and Path(stored).is_dir():
+        return stored
+    try:
+        path = local_worktree_path(job)
+    except Refused:
+        return None
+    return str(path) if path.is_dir() else None
+
+
+def worktree_path(job):
+    """Where git steps run. A stored local directory is used as-is; otherwise the
+    job's local REPO/.worktrees/<id>. Never falls back to REPO. Never writes."""
+    stored = job.get("worktree")
+    if isinstance(stored, str) and stored and Path(stored).is_absolute() and Path(stored).is_dir():
+        return stored
+    path = local_worktree_path(job)
+    if not path.is_dir():
+        raise Refused(f"{job['id']}: no worktree at {path} (job.json has {stored!r}). "
+                      "Create it on this machine or run the step where the worktree exists.")
+    return str(path)
 
 
 def topic_path(slug):
@@ -434,8 +476,9 @@ def next_round(job):
 def start_pass(job, line):
     """Give the job a worktree on its base and start a visit to `line`."""
     require(line in LINES, f"no line {line!r} in config.json ({', '.join(LINES)})")
-    Path(job["worktree"]).parent.mkdir(parents=True, exist_ok=True)
-    run(["git", "worktree", "add", "-b", job["branch"], job["worktree"], BASE])
+    target = local_worktree_path(job)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    run(["git", "worktree", "add", "-b", job["branch"], str(target), BASE])
     job["pass"] = len(job["passes"]) + 1
     job["line"] = line
     job["passes"].append({"pass": job["pass"], "line": line, "outcome": None})
@@ -447,8 +490,9 @@ def start_pass(job, line):
 
 
 def drop_worktree(job):
-    if Path(job["worktree"]).exists():
-        run(["git", "worktree", "remove", "--force", job["worktree"]])
+    path = existing_worktree(job)
+    if path is not None:
+        run(["git", "worktree", "remove", "--force", path])
     run(["git", "branch", "-D", job["branch"]], check=False)
 
 
