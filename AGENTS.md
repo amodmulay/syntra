@@ -17,7 +17,7 @@ setting (in `factory/config.json`) can pass a finished job on to another line
 — `build` handing to `docs`, for instance — before it's actually done.
 
 - State lives in `factory/jobs/<job-id>/` (gitignored).
-- `factory/records/<job-id>.json` is a tracked summary of a finished job. `factory/bin/job` writes it at final merge, committed on the job branch so it lands with the work. At reject it is written but not committed: the operator commits it by hand, and nothing is pushed.
+- `factory/records/<job-id>.json` is a tracked summary of a finished job. `factory/bin/job` writes it at final merge, committed on the job branch so it lands with the work. At reject it is written but not committed: the operator commits it by hand, and nothing is pushed. Its fields are an allowlist defined by `job_record` in `factory/bin/job`, and anyone who can read the repository's history can read every record in it.
 - `factory/bin/job` is the only thing allowed to write that state.
 - `factory/bin/pull` pulls open GitHub issues labeled `factory` into the
   inbox before each run — optional, and harmless if `gh` isn't set up.

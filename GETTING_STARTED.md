@@ -162,9 +162,23 @@ for example `/factory the Fourier function should be a DFT of a list`. The
 operator routes it to the right job: `needs-info` goes back to triage,
 `needs-human` goes back to build, and you can also reject a waiting job.
 
-A rejected job writes `factory/records/<job-id>.json`, but nothing commits or
-pushes it. Commit that file by hand (the command the reject prints) if you want
-other machines to see it. Finished merges commit their record with the work.
+Each finished job leaves `factory/records/<job-id>.json`. It holds the job's id,
+topic, final stage, line, pass, triage (decision, line, risk and surfaces),
+start and end times, `cost_usd` and the per-step `models` list, and no other
+fields: no topic body, paths or transcripts. A final merge commits the record
+with the work, so it reaches other machines through git. A rejected job's record
+is written to the main checkout but not committed. It reaches other machines only
+after you commit it with the two commands that `job reject` prints, which take
+the form `git -C <repo root> add -- factory/records/<job-id>.json` and
+`git -C <repo root> commit -m "..." -- factory/records/<job-id>.json`. Nothing is
+pushed on either path.
+
+Records are kept in git history, so anyone who can read the repository can read
+them, and deleting a record file later does not remove it from history. The
+`topic` value is the inbox file name, which is a slug of the first few words of
+the request title. Jobs finished before this feature have no record. A record
+does not stop `/factory run` from starting a topic again: a topic file that still
+sits in another machine's inbox is treated as new there.
 
 ## View the runs
 
@@ -185,6 +199,10 @@ Each card shows the verdict of
 every round, the models used, cost and elapsed time. Click a card to read the
 job's files (topic, triage, spec, build notes, check logs, reviews, decision)
 and a table of model, calls, tokens and cost per step.
+
+Cards labelled **Recorded on another device** come from `factory/records/`. They
+summarise jobs that have no job folder on this machine, show cost and timing,
+have no detail view, and are hidden when a local job has the same id.
 
 The header has a **Light** or **Dark** button next to the status line. It names the theme a click switches to, so it reads "Light" while the dark theme is showing. With no saved choice, the dashboard follows your browser or OS light or dark setting, including changes made while the page is open. A click saves your choice in this browser's local storage for the dashboard's address (scheme, host and port), and a saved choice then wins over the OS setting. If the browser blocks local storage, the choice lasts only until the page is reloaded. The dashboard has no reset control: to follow the OS again, clear the site data for that address or delete the `syntra-factory-theme` key in the browser's developer tools. A saved choice applies to one address only, so the same dashboard on another port, or on `127.0.0.1` instead of `localhost`, keeps its own choice.
 
@@ -215,6 +233,9 @@ python3 factory/bin/job summary
 | `NN-<line>/round-N/` | Gate result and each reviewer's verdict |
 | `job.json` | Stage, verdicts, routed reviewers, per-step models, cost |
 
+`factory/records/<id>.json` is not in `factory/jobs/`. It is the tracked summary
+of a finished job; see [Run it](#run-it).
+
 Stages: `triage`, `needs-info`, `spec`, `build`, `gate`, `review`, `approve`,
 `merging`, `needs-human`, `merged`, `rejected`.
 
@@ -222,7 +243,8 @@ Stages: `triage`, `needs-info`, `spec`, `build`, `gate`, `review`, `approve`,
 
 - **Per job:** `cost_usd` and `models` in `job.json` and on the dashboard.
   These are API-equivalent dollars worked out from Claude Code's transcripts,
-  not an actual bill, and they never go down on a re-sync.
+  not an actual bill, and they never go down on a re-sync. A finished job's
+  record in `factory/records/` carries the same `cost_usd` and `models` values.
 - **Everything, permanently:** `factory/usage/ledger.jsonl` records every API
   call with model, tokens and dollars, and `factory/usage/USAGE.md` summarises
   it by model and day. The factory adds to it whenever a job is saved. For

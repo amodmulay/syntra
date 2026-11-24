@@ -227,6 +227,8 @@ the gate fails after it is synced with the base branch) also waits at
 `needs-human`, with the reason in `<pass>/decision.md`; the base branch is left
 unchanged.
 
+A job that merges on its final line also commits `factory/records/<job-id>.json`, a small summary of the finished job, so its history stays in git. A rejected job's record is written but must be committed by hand. See [GETTING_STARTED.md](GETTING_STARTED.md#run-it).
+
 ### Update Syntra in a project
 
 For new work in the project, file or update an issue with the `factory` label
