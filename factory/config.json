@@ -27,9 +27,10 @@
   "protected_paths": [
     "factory/checks.sh"
   ],
-  "code_paths": [
-    "src/*",
-    "tests/*"
+  "docs_only_paths": [
+    "*.md",
+    "LICENSE",
+    "screenshots/*"
   ],
   "ports": { "base": 5100, "step": 10 },
   "dashboard": { "port": 8000 },

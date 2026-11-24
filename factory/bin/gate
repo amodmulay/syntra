@@ -97,11 +97,12 @@ def protected_changes(entries):
 
 
 def touches_code(entries):
-    """Whether the diff touches any path the checks script actually exercises.
-    A line whose scope excludes code (e.g. docs) can skip the real test run
-    when nothing under code_paths changed; any status (A/M/D/R) counts."""
-    patterns = CONFIG.get("code_paths", [])
-    return any(fnmatch.fnmatch(path, pattern) for _, path in entries for pattern in patterns)
+    """Whether the diff needs the real checks run. They are skipped only when
+    every changed path (any status: A/M/D/R) matches config.json's
+    `docs_only_paths`. Any other path runs them, including factory scripts,
+    config and the dashboard, and so does a path nobody thought to list."""
+    patterns = CONFIG.get("docs_only_paths", [])
+    return any(not any(fnmatch.fnmatch(path, p) for p in patterns) for _, path in entries)
 
 
 def run_checks(worktree, script):
@@ -123,7 +124,7 @@ def gate(job_id, merge):
     protected = protected_changes(entries)
     skip = not touches_code(entries)
     if skip:
-        code, log, seconds = 0, "(skipped: diff touches no code_paths from config.json)\n", 0
+        code, log, seconds = 0, "(skipped: every changed path matches docs_only_paths in config.json)\n", 0
     else:
         code, log, seconds = run_checks(worktree, script)
     verdict = "PASS" if code == 0 and not protected else "FAIL"
@@ -131,7 +132,7 @@ def gate(job_id, merge):
     round_dir.mkdir(parents=True, exist_ok=True)
     (round_dir / f"{name}.log").write_text(log)
     tail = "\n".join(log.rstrip().splitlines()[-TAIL:])
-    ran = f"skipped (no changes under {', '.join(CONFIG.get('code_paths', []))})" if skip \
+    ran = f"skipped (only docs changed: {', '.join(CONFIG.get('docs_only_paths', []))})" if skip \
         else f"{'passed' if code == 0 else f'failed with exit {code}'} in {seconds}s"
     summary = [
         f"{script.relative_to(REPO)} {ran}",
@@ -162,7 +163,7 @@ def hook():
     job = load_job(job_id)
     worktree = worktree_path(job)
     if not touches_code(diff_entries(worktree)):
-        sys.exit(0)  # nothing under code_paths changed; the gate will skip too
+        sys.exit(0)  # only docs changed; the gate will skip too
     code, log, _ = run_checks(worktree, checks_script(job))
     if code != 0:
         tail = "\n".join(log.rstrip().splitlines()[-40:])

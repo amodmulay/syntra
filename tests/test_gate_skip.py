@@ -1,9 +1,9 @@
-"""Tests that the gate skips the real checks script when a branch's diff
-touches nothing under config.json's code_paths (e.g. a docs-only pass), but
-still runs it for any branch that touches src/ or tests/, and still fails on
-a protected-path change even when the check run itself is skipped.
+"""Tests that the gate skips the real checks script only when every path a
+branch changed matches config.json's docs_only_paths (e.g. a docs-only pass),
+runs it for any other change (src/, tests/, factory scripts, config), and
+fails on a protected-path change.
 
-Uses the real factory/config.json (code_paths, protected_paths, lines.build)
+Uses the real factory/config.json (docs_only_paths, protected_paths, lines.build)
 loaded at import time; only REPO is pointed at a sandbox so no real worktree
 or job state is touched.
 """
@@ -53,7 +53,7 @@ class GateSkipTests(unittest.TestCase):
         self.marker = self.repo / "ran.marker"
         (self.repo / "factory" / "bin").mkdir(parents=True)
         (self.repo / "factory" / "bin" / "fake-checks.sh").write_text(
-            f"#!/usr/bin/env bash\ntouch {self.marker}\nexit 0\n"
+            f"#!/usr/bin/env bash\ntouch '{self.marker.as_posix()}'\nexit 0\n"  # bash eats Windows backslashes
         )
         (self.repo / "src").mkdir()
         (self.repo / "src" / "calc.py").write_text("x = 1\n")
@@ -125,7 +125,38 @@ class GateSkipTests(unittest.TestCase):
         self.assertTrue(checks_md.startswith("GATE: PASS"))
         self.assertNotIn("skipped", checks_md.splitlines()[0])
 
-    def test_protected_only_diff_still_fails_even_when_skipped(self):
+    def run_gate(self):
+        job = self.make_job()
+        self.write_job(job)
+        with self.assertRaises(SystemExit) as cm:
+            gate_module.gate(self.JOB_ID, merge=False)
+        return job, cm.exception.code
+
+    def test_factory_script_change_runs_the_check_script(self):
+        (self.worktree / "factory" / "bin" / "job").write_text("#!/usr/bin/env python3\n")
+        git(self.worktree, "add", "factory/bin/job")
+        git(self.worktree, "commit", "-m", "factory script change")
+        job, code = self.run_gate()
+        self.assertEqual(code, 0)
+        self.assertTrue(self.marker.exists(), "a factory script change must run the real check script")
+        self.assertNotIn("skipped", (self.round_dir(job) / "checks.md").read_text())
+
+    def test_docs_and_code_change_runs_the_check_script(self):
+        (self.worktree / "docs" / "readme.md").write_text("docs changed\n")
+        (self.worktree / "src" / "calc.py").write_text("x = 3\n")
+        git(self.worktree, "commit", "-am", "docs and code")
+        _, code = self.run_gate()
+        self.assertEqual(code, 0)
+        self.assertTrue(self.marker.exists(), "any non-docs path in the diff must run the checks")
+
+    def test_unlisted_file_type_runs_the_check_script(self):
+        (self.worktree / "notes.txt").write_text("not listed as docs\n")
+        git(self.worktree, "add", "notes.txt")
+        git(self.worktree, "commit", "-m", "unlisted file")
+        self.run_gate()
+        self.assertTrue(self.marker.exists(), "a path not in docs_only_paths must run the checks")
+
+    def test_protected_only_diff_still_fails(self):
         (self.repo / "factory" / "checks.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
         git(self.repo, "add", "factory/checks.sh")
         git(self.repo, "commit", "-m", "add protected file")
@@ -137,7 +168,7 @@ class GateSkipTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as cm:
             gate_module.gate(self.JOB_ID, merge=False)
         self.assertEqual(cm.exception.code, 1)
-        self.assertFalse(self.marker.exists(), "still skipped: the protected-path diff isn't under code_paths")
+        self.assertTrue(self.marker.exists(), "a protected-path change isn't docs, so the checks run")
         checks_md = (self.round_dir(job) / "checks.md").read_text()
         self.assertTrue(checks_md.startswith("GATE: FAIL"))
         self.assertIn("factory/checks.sh", checks_md)
