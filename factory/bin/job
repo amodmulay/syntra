@@ -52,6 +52,7 @@ FACTORY = REPO / "factory"
 JOBS = FACTORY / "jobs"
 INBOX = FACTORY / "inbox"
 BIN = FACTORY / "bin"
+RECORDS = FACTORY / "records"  # tracked, committed summaries of finished jobs (see job_record)
 CONFIG = json.loads((FACTORY / "config.json").read_text())
 BASE = CONFIG["base_branch"]
 LINES = CONFIG["lines"]
@@ -523,8 +524,10 @@ def advance(job, stage):
         require(line == want, f"decision.md starts with {line!r}, not {want}")
 
     elif old == "merging":
-        require(run(["git", "merge-base", "--is-ancestor", job["branch"], BASE], check=False).returncode == 0,
-                f"{job['branch']} isn't on {BASE} yet")
+        # A failed land escalates from here, and base may not hold the work then.
+        if stage != "needs-human":
+            require(run(["git", "merge-base", "--is-ancestor", job["branch"], BASE], check=False).returncode == 0,
+                    f"{job['branch']} isn't on {BASE} yet")
         if stage == "spec":  # handoff to the next line
             job["passes"][-1]["outcome"] = f"handed off to {job['handoff_to']}"
             drop_worktree(job)
@@ -555,8 +558,89 @@ def advance(job, stage):
 # ---- Landing: merge a finished line into the base branch -------------------
 
 
-def land(job):
-    """Bring the branch up to date with base, gate it, then fast-forward base to it."""
+RECORD_ID = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")
+RECORD_MODEL_KEYS = ("step", "model", "calls", "tokens", "cost")
+RECORD_TRIAGE_KEYS = ("decision", "line", "risk", "surfaces")
+
+
+def check_record_id(job_id):
+    """Refuse any id that could escape factory/records/ once used in a filename."""
+    if not isinstance(job_id, str) or not RECORD_ID.fullmatch(job_id):
+        raise Refused(f"refusing to write a record for id {job_id!r}")
+    return job_id
+
+
+def job_record(job):
+    """The allowlisted summary of a finished job (spec D3). Nothing else goes in a record.
+
+    Reads only the job's own synced fields: never the ledger, the topic body,
+    paths, the worktree, or transcripts. `job["stage"]` and `job["ended"]` are
+    whatever the caller passes in, so the caller sets them for the record.
+    """
+    t = job.get("triage") or {}
+    triage = {k: t.get(k) for k in RECORD_TRIAGE_KEYS}
+    if isinstance(triage["surfaces"], list):
+        triage["surfaces"] = [str(s) for s in triage["surfaces"]]
+    return {
+        "id": job["id"],
+        "topic": job.get("topic"),
+        "title": job.get("title"),
+        "stage": job["stage"],
+        "line": job.get("line"),
+        "pass": job.get("pass"),
+        "triage": triage,
+        "started": job.get("started"),
+        "ended": job.get("ended") or now(),
+        "cost_usd": float(job.get("cost_usd") or 0.0),
+        "models": [{k: m.get(k) for k in RECORD_MODEL_KEYS} for m in job.get("models") or []],
+    }
+
+
+def record_text(record):
+    return json.dumps(record, indent=2, sort_keys=True) + "\n"
+
+
+def write_record(root, record):
+    """Write root/<id>.json (no git operation). Returns the path written."""
+    check_record_id(record["id"])
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / f"{record['id']}.json"
+    path.write_text(record_text(record))
+    return path
+
+
+def commit_record(job, record):
+    """Write the record into the job worktree and commit only that file (spec D2 3b-3d)."""
+    check_record_id(record["id"])
+    rel = f"factory/records/{record['id']}.json"
+    write_record(Path(job["worktree"]) / "factory" / "records", record)
+    git(job, "add", "--", rel)
+    diff = git(job, "diff", "--cached", "--quiet", "--", rel, check=False)
+    if diff.returncode == 0:  # identical content already committed: nothing to do
+        return
+    if diff.returncode != 1:
+        raise Refused(f"`git diff` on {rel} failed: {diff.stderr.strip()}")
+    git(job, "commit", "-m", f"Record job {job['id']} (merged)", "--", rel)
+
+
+def discard_record(job, pre):
+    """Undo a record commit made by commit_record: reset to the commit taken before it."""
+    git(job, "reset", "--hard", pre, check=False)
+    rel = f"factory/records/{job['id']}.json"
+    if git(job, "cat-file", "-e", f"{pre}:{rel}", check=False).returncode != 0:
+        try:  # an untracked leftover from this attempt; a tracked file was just restored by reset
+            (Path(job["worktree"]) / rel).unlink()
+        except OSError:
+            pass
+
+
+def land(job, record=False):
+    """Bring the branch up to date with base, gate it, then fast-forward base to it.
+
+    With `record` (a final line, not a handoff), the job's summary is committed on
+    the branch after the gate and lands with the work. Any failure before base
+    moves leaves base untouched, and a failed record leaves no record commit behind.
+    """
     merged = git(job, "merge", "--no-edit", BASE, check=False)
     if merged.returncode != 0:
         git(job, "merge", "--abort", check=False)
@@ -565,12 +649,24 @@ def land(job):
     if gate.returncode != 0:
         raise Refused(f"The gate failed after syncing with {BASE}. "
                       f"See {round_dir(job).name}/merge-checks.md.\n\n{gate.stdout.strip()}")
+    pre = git(job, "rev-parse", "HEAD").stdout.strip()
+    if record:
+        try:
+            commit_record(job, job_record({**job, "stage": "merged", "ended": now()}))
+        except (OSError, Refused) as e:
+            discard_record(job, pre)
+            raise Refused(f"couldn't write the job record: {e}")
     tip = git(job, "rev-parse", "HEAD").stdout.strip()
-    if run(["git", "branch", "--show-current"]).stdout.strip() == BASE:
-        run(["git", "merge", "--ff-only", job["branch"]])  # the main checkout moves with base
-    else:  # main checkout is elsewhere: move the ref without touching it
-        old = run(["git", "rev-parse", BASE]).stdout.strip()
-        run(["git", "update-ref", f"refs/heads/{BASE}", tip, old])
+    try:
+        if run(["git", "branch", "--show-current"]).stdout.strip() == BASE:
+            run(["git", "merge", "--ff-only", job["branch"]])  # the main checkout moves with base
+        else:  # main checkout is elsewhere: move the ref without touching it
+            old = run(["git", "rev-parse", BASE]).stdout.strip()
+            run(["git", "update-ref", f"refs/heads/{BASE}", tip, old])
+    except Refused:
+        if record:
+            discard_record(job, pre)
+        raise
 
 
 def write_handoff(job, target):
@@ -603,15 +699,15 @@ def cmd_merge(job):
         job = advance(job, "merging")
     if job["stage"] != "merging":
         die(f"{job['id']} is in {job['stage']}, not approve, needs-human or merging")
+    target = LINES[job["line"]].get("handoff")
     try:
-        land(job)
+        land(job, record=not target)  # a handoff is not the final line: no record yet
     except Refused as e:
         why = str(e)
         escalate(job, why)
         save(sync(advance(job, "needs-human")))
         print(f"{job['id']}: needs-human: {why.splitlines()[0]}")
         return
-    target = LINES[job["line"]].get("handoff")
     if target:
         job["handoff_to"] = target
         write_handoff(job, target)
@@ -656,6 +752,9 @@ def cmd_create(topic):
         die(str(e))
     JOBS.mkdir(parents=True, exist_ok=True)
     numbers = [int(p.name[:3]) for p in JOBS.iterdir() if p.name[:3].isdigit()]
+    # Records may come from other devices; their numbers are taken too.
+    if RECORDS.exists():
+        numbers += [int(p.stem[:3]) for p in RECORDS.glob("*.json") if p.stem[:3].isdigit()]
     job_id = f"{max(numbers, default=0) + 1:03d}-{topic}"
     job_dir(job_id).mkdir()
     job = {
@@ -740,8 +839,17 @@ def cmd_reject(job, text):
         die("no reason on stdin")
     (job_dir(job["id"]) / "rejection.md").write_text(
         f"REJECTED\n\nBy the operator while the job was {job['stage']}.\n\n{text.strip()}\n")
+    # The record is written before advance, which drops the worktree. It is not
+    # committed here: the operator commits it (see the printed follow-up).
+    job = sync(job)
+    try:
+        path = write_record(RECORDS, job_record({**job, "stage": "rejected", "ended": now()}))
+    except (OSError, Refused) as e:
+        die(f"couldn't write the job record ({e}); {job['id']} is still {job['stage']}")
     save(sync(advance(sync(job), "rejected")))
-    print(f"{job['id']}: rejected")
+    rel = f"factory/records/{path.name}"
+    print(f"{job['id']}: rejected; record {rel} is not committed. To keep it across devices run: "
+          f"git add {rel} && git commit -m \"Record rejected job {job['id']}\"")
 
 
 def cmd_agents(job, spec):

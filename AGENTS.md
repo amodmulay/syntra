@@ -16,7 +16,7 @@ approve and landing approved work on the base branch. Issues may update Syntra i
 setting (in `factory/config.json`) can pass a finished job on to another line
 — `build` handing to `docs`, for instance — before it's actually done.
 
-- State lives in `factory/jobs/<job-id>/` (gitignored).
+- State lives in `factory/jobs/<job-id>/` (gitignored). `factory/records/<job-id>.json` is a tracked, committed summary written by `factory/bin/job` at final merge (committed with the work) and at reject (written uncommitted; the operator must commit it by hand).
 - `factory/bin/job` is the only thing allowed to write that state.
 - `factory/bin/pull` pulls open GitHub issues labeled `factory` into the
   inbox before each run — optional, and harmless if `gh` isn't set up.
