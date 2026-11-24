@@ -928,6 +928,13 @@ def cmd_add(title):
     print(slug)
 
 
+def job_number(name):
+    """The full leading number of a job id or record name (`1000-x` -> 1000), or None.
+    Ids are `NNN-slug`; the number is never cut to three digits."""
+    m = re.match(r"(\d+)-", name)
+    return int(m.group(1)) if m else None
+
+
 def cmd_create(topic):
     if not topic_path(topic).exists():
         die(f"no topic {topic!r} in factory/inbox/")
@@ -939,10 +946,11 @@ def cmd_create(topic):
     except Refused as e:
         die(str(e))
     JOBS.mkdir(parents=True, exist_ok=True)
-    numbers = [int(p.name[:3]) for p in JOBS.iterdir() if p.name[:3].isdigit()]
     # Records may come from other devices; their numbers are taken too.
+    names = [p.name for p in JOBS.iterdir()]
     if RECORDS.exists():
-        numbers += [int(p.stem[:3]) for p in RECORDS.glob("*.json") if p.stem[:3].isdigit()]
+        names += [p.stem for p in RECORDS.glob("*.json")]
+    numbers = [job_number(n) for n in names if job_number(n) is not None]
     job_id = f"{max(numbers, default=0) + 1:03d}-{topic}"
     job_dir(job_id).mkdir()
     job = {

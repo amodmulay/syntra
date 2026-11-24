@@ -369,6 +369,21 @@ class JobRecordTests(RecordTestCase):
         self.quiet(job.cmd_create, "new-topic")
         self.assertTrue((job.JOBS / "006-new-topic" / "job.json").exists())
 
+    def test_create_numbering_reads_ids_past_999_in_full(self):
+        job.RECORDS.mkdir(parents=True)
+        (job.RECORDS / "1000-old-topic.json").write_text("{}\n")
+        (job.RECORDS / "011-other-topic.json").write_text("{}\n")
+        job.INBOX.mkdir(parents=True)
+        (job.INBOX / "new-topic.md").write_text("# New topic\n")
+        self.quiet(job.cmd_create, "new-topic")
+        self.assertTrue((job.JOBS / "1001-new-topic" / "job.json").exists())
+
+    def test_job_number_parses_the_whole_leading_number(self):
+        self.assertEqual(job.job_number("1000-set-github-issue"), 1000)
+        self.assertEqual(job.job_number("011-keep-records"), 11)
+        self.assertIsNone(job.job_number("notes"))
+        self.assertIsNone(job.job_number(".lock"))
+
     def test_no_record_for_in_progress_stages(self):
         job.INBOX.mkdir(parents=True)
         (job.INBOX / "new-topic.md").write_text("# New topic\n")
