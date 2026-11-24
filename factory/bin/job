@@ -637,10 +637,20 @@ def job_record(job):
     paths, the worktree, or transcripts. `job["stage"]` and `job["ended"]` are
     whatever the caller passes in, so the caller sets them for the record.
     """
+    # Bad synced fields are refused as Refused, so land() routes them to needs-human.
     t = job.get("triage") or {}
+    if not isinstance(t, dict):
+        raise Refused(f"{job['id']}: job.json triage isn't an object, so no record can be written")
     triage = {k: t.get(k) for k in RECORD_TRIAGE_KEYS}
     if isinstance(triage["surfaces"], list):
         triage["surfaces"] = [str(s) for s in triage["surfaces"]]
+    try:
+        cost = float(job.get("cost_usd") or 0.0)
+    except (TypeError, ValueError):
+        raise Refused(f"{job['id']}: cost_usd {job.get('cost_usd')!r} isn't a number, so no record can be written")
+    models = job.get("models") or []
+    if not isinstance(models, list) or not all(isinstance(m, dict) for m in models):
+        raise Refused(f"{job['id']}: job.json models isn't a list of objects, so no record can be written")
     return {
         "id": job["id"],
         "topic": job.get("topic"),
@@ -650,8 +660,8 @@ def job_record(job):
         "triage": triage,
         "started": job.get("started"),
         "ended": job.get("ended") or now(),
-        "cost_usd": float(job.get("cost_usd") or 0.0),
-        "models": [{k: m.get(k) for k in RECORD_MODEL_KEYS} for m in job.get("models") or []],
+        "cost_usd": cost,
+        "models": [{k: m.get(k) for k in RECORD_MODEL_KEYS} for m in models],
     }
 
 
@@ -667,6 +677,8 @@ def write_record(root, record):
             raise Refused(f"refusing to write a record under a symlink: {p}")
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{record['id']}.json"
+    if path.is_symlink():  # write_text would follow a link out of the repo
+        raise Refused(f"refusing to write a record through a symlink: {path}")
     path.write_text(record_text(record))
     return path
 
@@ -694,7 +706,8 @@ def commit_record(job, record):
     """
     check_record_id(record["id"])
     rel = f"factory/records/{record['id']}.json"
-    write_record(Path(job["worktree"]) / "factory" / "records", record)
+    # worktree_path(), never job["worktree"]: a stored path may point outside .worktrees/.
+    write_record(Path(worktree_path(job)) / "factory" / "records", record)
     git(job, "add", "--", rel)
     diff = git(job, "diff", "--cached", "--quiet", "--", rel, check=False)
     if diff.returncode == 0:  # identical content already committed: nothing to do
@@ -731,7 +744,7 @@ def undo_record(job, pre):
         else:
             r = git(job, "reset", "-q", "--", rel, check=False)  # index only: drop the staged add
             try:
-                (Path(job["worktree"]) / rel).unlink(missing_ok=True)
+                (Path(worktree_path(job)) / rel).unlink(missing_ok=True)  # same root as commit_record
             except OSError as e:
                 problems.append(f"could not remove {rel}: {e}")
         if r.returncode != 0:

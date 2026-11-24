@@ -167,15 +167,20 @@
                 0 8px 24px -12px color-mix(in srgb, var(--human) 60%, transparent);
   }
   /* Done cards are not faded: an opacity fade drops muted text under 4.5:1 in dark.
-     Their text uses --muted (4.68:1 on --card; hover keeps --card so it stays there). */
+     Their text uses --muted (4.68:1 on --card). Local Done cards still open the drawer, so
+     they keep the normal hover background; their text goes to --text on hover (--muted on
+     --card-hover would be 4.33:1). */
   .card.done .feature, .card.done .links { color: var(--muted); }
-  .card.done:hover { background: var(--card); }
+  .card.done:not(.record):hover { background: var(--card-hover); }
+  .card.done:not(.record):hover .feature, .card.done:not(.record):hover .links { color: var(--text); }
   .card.rejected .feature { text-decoration: line-through; text-decoration-color: var(--faint); }
   .flag.wait { color: var(--changes); }
-  /* Read from a record: a neutral tag, not an alarm. Record cards have nothing to open. */
-  .flag.record { color: var(--muted); }
+  /* Record cards (from factory/records/, no job folder here) have nothing to open: no hover lift or fill. */
   .card.record { cursor: default; }
   .card.record:hover { background: var(--card); transform: none; }
+  .card.record .num { flex-shrink: 0; }
+  .card.record .feature { overflow-wrap: anywhere; }
+  .origin { font-size: 10.5px; line-height: 1.4; color: var(--muted); margin: 0 0 6px; overflow-wrap: anywhere; }
   .card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .num { font-family: var(--mono); font-size: 12px; color: var(--muted); }
   .card-top .num { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -519,26 +524,28 @@ function card(job, rounds) {
 
 // A record from factory/records/ for a job with no folder here. Read-only: no data-job,
 // no tabindex, so it never opens the drawer.
-// The label comes from the id alone (the record holds no title): numeric prefix dropped, hyphens as spaces.
+// The id number is the only id text shown; the title is the id's words spaced out (the record holds no title).
+// A record with no `ended` shows a blank time, not a timer that keeps running.
 function recordCard(r) {
   const [num, ...slug] = r.id.split('-')
-  const label = slug.join(' ') || r.id
+  const label = slug.join(' ') || String(r.topic || '').replace(/-/g, ' ')
   const risk = r.triage?.risk
   const meta = [
-    r.line ? `<span class="line">${esc(r.line)} · pass ${esc(r.pass)}</span>` : '',
+    r.line ? `<span class="line">${esc(r.line)}${r.pass != null ? ` · pass ${esc(r.pass)}` : ''}</span>` : '',
     risk ? `<span class="risk-${esc(risk)}">${esc(risk)}</span>` : '',
     modelsChip(r),
     `<span>$${(Number(r.cost_usd) || 0).toFixed(2)}</span>`,
-    `<span>${elapsed(r)}</span>`,
+    `<span>${r.ended ? elapsed(r) : '—'}</span>`,
   ].join('')
-  const flag = r.stage === 'rejected' ? 'rejected · record only' : 'record only'
+  const rejected = r.stage === 'rejected' ? '<span class="flag wait">rejected</span>' : ''
   return `
     <article class="card done record ${esc(r.stage)}">
       <div class="card-top">
-        <span class="num">${esc(num)} · ${esc(slug.join('-'))}</span>
-        <span class="flag record" title="Read from factory/records/ (no job folder on this machine)">${flag}</span>
+        <span class="num">${esc(num)}</span>
+        ${rejected}
       </div>
       <p class="feature">${esc(label)}</p>
+      <div class="origin" title="This summary was saved from another machine. This machine has no job folder, so there is no detail view.">Recorded on another device</div>
       <div class="meta">${meta}</div>
     </article>`
 }

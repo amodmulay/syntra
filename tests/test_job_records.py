@@ -244,6 +244,41 @@ class JobRecordTests(RecordTestCase):
             job.write_record(link / "records", {"id": "001-x"})
         self.assertEqual(list(target.iterdir()), [])
 
+    def test_record_ignores_foreign_stored_worktree(self):
+        # job.json synced from another machine may name a path outside .worktrees/.
+        j = self.make_job(line="docs", stage="merging")
+        foreign = self.tmp / "foreign-worktree"
+        j["worktree"] = str(foreign)
+        job.save(j)
+        self.quiet(job.cmd_merge, j)
+        self.assertFalse(foreign.exists())
+        self.assertEqual(self.git("show", "main:factory/records/001-new-topic.json").count('"stage": "merged"'), 1)
+
+    def test_write_record_refuses_symlinked_record_file(self):
+        target = self.tmp / "outside.json"
+        target.write_text("ORIGINAL\n")
+        records = self.tmp / "records"
+        records.mkdir()
+        link = records / "001-x.json"
+        try:
+            os.symlink(target, link)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are not available here")
+        with self.assertRaises(job.Refused):
+            job.write_record(records, {"id": "001-x"})
+        self.assertEqual(target.read_text(), "ORIGINAL\n")
+
+    def test_job_record_refuses_bad_synced_fields_as_refused(self):
+        # land() only catches Refused and OSError around the record, so a bare ValueError or
+        # AttributeError from job_record would skip the needs-human escalation.
+        base = {"id": "001-new-topic", "stage": "merged", "ended": "2026-11-24T10:05:00Z"}
+        with self.assertRaises(job.Refused):
+            job.job_record({**base, "cost_usd": "not a number"})
+        with self.assertRaises(job.Refused):
+            job.job_record({**base, "models": ["not an object"]})
+        with self.assertRaises(job.Refused):
+            job.job_record({**base, "triage": ["not", "an", "object"]})
+
     def test_rerun_land_adds_no_second_record_commit(self):
         j = self.make_job(line="docs", stage="merging")
         ticks = itertools.count()
@@ -350,7 +385,8 @@ class JobRecordTests(RecordTestCase):
     def test_dashboard_reads_records_and_dedupes(self):
         text = (REAL_REPO / "factory" / "dashboard.html").read_text(encoding="utf-8")
         self.assertIn("fetchText('records/')", text)
-        self.assertIn("record only", text)  # the visible tag on a record card
+        self.assertIn("Recorded on another device", text)  # the visible label on a record card
+        self.assertIn(".card.done:not(.record):hover", text)  # local Done cards keep a hover state
         self.assertIn("jobIds", text)
         self.assertNotIn("parsed.title", text)  # titles are not in records
 
