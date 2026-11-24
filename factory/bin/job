@@ -404,6 +404,18 @@ def escalate(job, why):
     (pass_dir(job) / "decision.md").write_text(f"ESCALATE\n\n## Why\n{why}\n")
 
 
+def refuse_land(job, why):
+    """Private: the refused-land edge, merging -> needs-human. Skips the ancestor
+    check because the branch is not on BASE by definition. Only cmd_merge calls
+    this, from its `except Refused` block. No CLI verb or main() branch may use it."""
+    require(job["stage"] == "merging",
+            f"{job['id']}: refuse_land needs merging, not {job['stage']}")
+    escalate(job, why)
+    job["stage"] = "needs-human"
+    job["ended"] = now()
+    return job
+
+
 def check_reviews_done(job):
     rd = round_dir(job)
     missing = [r for r in reviewers(job) if not (rd / f"review-{r}.md").exists()]
@@ -607,8 +619,7 @@ def cmd_merge(job):
         land(job)
     except Refused as e:
         why = str(e)
-        escalate(job, why)
-        save(sync(advance(job, "needs-human")))
+        save(sync(refuse_land(job, why)))
         print(f"{job['id']}: needs-human: {why.splitlines()[0]}")
         return
     target = LINES[job["line"]].get("handoff")
