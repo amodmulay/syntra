@@ -213,15 +213,24 @@ another machine's inbox is treated as new there.
 
 ### GitHub labels on the linked issue
 
-A topic pulled in from a GitHub issue has its issue updated when its job ends:
+A topic pulled in from a GitHub issue (its first line is the `factory-issue`
+marker) has that issue updated when its job ends. For a build job that hands off
+to docs, "ends" means the docs line's final merge. The build merge makes no
+GitHub call.
 
-- **Final merge:** the linked issue gets the `factory-done` label. The existing
-  comment and close are unchanged.
-- **Rejection:** the linked issue gets the `factory-rejected` label and a comment
-  with the reject reason. That reason is public to anyone who can read the issue.
-- The labels are created on first use if they are missing. This needs `gh` signed
-  in with permission to edit issues and labels. If `gh` is missing or fails, the
-  merge or reject still succeeds and nothing is retried.
+- **Final merge:** the issue gets a comment that starts with `Factory: merged.`
+  and then the decision summary (or `Landed on the base branch.` if there is
+  none). The issue is then closed, and the `factory-done` label is added. If the
+  comment fails, the close is skipped.
+- **Rejection:** the issue gets the `factory-rejected` label and a comment that
+  starts with `Factory: rejected.`, then `Reason from the operator:`, then the
+  reason as written. The reason is published as written, not redacted, and anyone
+  who can read the issue can read it.
+- **Labels:** the factory tries to add the label first. Only if that fails does it
+  create the label and try the add once more. This needs `gh` signed in with
+  permission to edit issues and labels.
+- If `gh` is missing or a call fails, the merge or reject still succeeds, and the
+  factory does not retry later.
 - Nothing is pushed, and no GitHub Project board is changed.
 
 ## View the runs

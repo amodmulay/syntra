@@ -18,6 +18,7 @@ setting (in `factory/config.json`) can pass a finished job on to another line
 
 - State lives in `factory/jobs/<job-id>/` (gitignored).
 - `factory/records/<job-id>.json` is a tracked summary of a finished job. `factory/bin/job` writes it at final merge, committed on the job branch so it lands with the work. At reject it is written but not committed: the operator commits it by hand, and nothing is pushed. Its fields are an allowlist defined by `job_record` in `factory/bin/job`, and anyone who can read the repository's history can read every record in it. The `triage` decision, line, risk and surfaces are free text copied as written from `triage.md`, not validated or sanitized. The job-id slug can get a `-<issue#>` suffix when `factory/bin/pull` finds a slug collision.
+- A topic pulled in from a GitHub issue (marked `<!-- factory-issue: N -->`) gets its issue updated when its job ends on the final line: a final merge comments with the decision and closes the issue, then adds `factory-done`; a reject adds `factory-rejected` and comments with the operator's reason, which is published as written. These `gh` calls are best-effort and never change the merge or reject outcome. See [GETTING_STARTED.md](GETTING_STARTED.md#run-it).
 - `factory/bin/job` is the only thing allowed to write that state.
 - `factory/bin/pull` pulls open GitHub issues labeled `factory` into the
   inbox before each run — optional, and harmless if `gh` isn't set up.

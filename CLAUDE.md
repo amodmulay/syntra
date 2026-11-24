@@ -37,6 +37,7 @@ landing approved work on the base branch or handing it to another line
   checkout but not committed (commit it by hand). Nothing is pushed. Its fields
   are an allowlist defined by `job_record` in `factory/bin/job`, and anyone who
   can read the repository's history can read every record in it.
+- Linked GitHub issues: a final merge closes the issue with a comment and adds `factory-done`; a reject adds `factory-rejected` and posts the operator's reason as a public comment. Best-effort `gh` calls; see AGENTS.md.
 - Checks: `factory/checks.sh`.
 - Boundaries: `factory/playbooks/_global.md` and one per line.
 - Dashboard: `/factory run` starts it automatically (`factory/bin/dashboard`,
