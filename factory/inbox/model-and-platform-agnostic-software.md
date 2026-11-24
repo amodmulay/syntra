@@ -1,4 +1,14 @@
 <!-- factory-issue: 1 -->
-# model and platform agnostic software factory
+# [Factory] Create a sample trignometry function to calculate sin
 
-Make the software factory agnostice to the model. it should be able to use any model from any provider
+### Problem or goal
+
+Create a sample trignometry function to calculate sin. this should just be a sample with placeholder data
+
+### Acceptance criteria
+
+a demo run shows how sin is calculated
+
+### Area
+
+Syntra factory
