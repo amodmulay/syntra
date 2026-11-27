@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "managed": [
+    ".claude/skills/factory/SKILL.md",
+    ".claude/skills/factory-commit/SKILL.md",
+    ".claude/skills/factory-update/SKILL.md",
+    ".claude/agents/spec-writer.md",
+    ".claude/agents/builder.md",
+    ".claude/agents/reviewer-code.md",
+    ".claude/agents/approver.md",
+    "factory/bin/job",
+    "factory/bin/gate",
+    "factory/bin/route",
+    "factory/bin/pull",
+    "factory/bin/dashboard",
+    "factory/bin/usage",
+    "factory/bin/update",
+    "factory/dashboard.html",
+    "start-dashboard.sh"
+  ],
+  "adapted": [
+    ".claude/agents/triage.md",
+    ".claude/agents/reviewer-security.md",
+    ".claude/agents/reviewer-ux.md",
+    ".claude/agents/reviewer-ui.md",
+    "factory/checks.sh",
+    "factory/playbooks/_global.md",
+    "factory/playbooks/build.md",
+    "factory/playbooks/docs.md"
+  ],
+  "merge_json": [
+    "factory/config.json"
+  ],
+  "executable": [
+    "factory/bin/job",
+    "factory/bin/gate",
+    "factory/bin/route",
+    "factory/bin/pull",
+    "factory/bin/dashboard",
+    "factory/bin/usage",
+    "factory/bin/update",
+    "factory/checks.sh",
+    "start-dashboard.sh"
+  ]
+}
