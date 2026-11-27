@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""Update this project's installed Syntra factory from a newer Syntra.
+
+Usage:
+    update <source>                  show what would change (dry run, writes nothing)
+    update <source> --apply          apply it
+    update <source> --apply --force  also overwrite managed files you edited, and
+                                     update while jobs are still running
+    update <source> --adopt          write the baseline record only, changing no
+                                     factory file (use right after an install, or
+                                     once on an install that predates this script)
+
+<source> is a local checkout of Syntra or a git URL (cloned to a temp folder).
+
+The source's factory/manifest.json sorts every file into one of three groups:
+
+  managed     generic files (scripts, skills, the dashboard, generic agents).
+              Replaced with the new version, unless you edited your copy: an
+              edited file is skipped and listed, never overwritten, without --force.
+  adapted     files tailored to this project (checks.sh, playbooks, the triage and
+              reviewer agents). Never changed. A file missing here is added from
+              the template; when upstream changed one since your last update, its
+              diff is printed so you can merge it by hand.
+  merge_json  config.json. Keys the new version added are filled in; every value
+              you already have stays exactly as it is.
+
+factory/.installed.json records the source commit and a hash of each file as it
+was installed. It is how "you edited this" and "upstream changed this" are told
+apart. Commit it. Nothing is committed or pushed by this script, and factory/
+jobs/, inbox/, records/ and usage/ are never touched.
+"""
+import argparse
+import difflib
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+STATE = ROOT / "factory" / ".installed.json"
+TERMINAL = {"merged", "rejected"}
+
+
+def norm(data):
+    """Bytes with line endings normalised, so CRLF checkouts hash like LF ones."""
+    return data.replace(b"\r\n", b"\n")
+
+
+def digest(data):
+    return hashlib.sha256(norm(data)).hexdigest()
+
+
+def read(path):
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+def git(args, cwd):
+    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def fetch_source(spec, tmp):
+    """Return (source_dir, display_name). A directory is used as is; anything else is cloned."""
+    p = Path(spec).expanduser()
+    if p.is_dir():
+        return p.resolve(), str(p.resolve())
+    dest = Path(tmp) / "syntra-source"
+    r = subprocess.run(["git", "clone", "--quiet", spec, str(dest)], capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit(f"update: couldn't clone {spec}: {r.stderr.strip()}")
+    return dest, spec
+
+
+def load_manifest(src):
+    path = src / "factory" / "manifest.json"
+    try:
+        m = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        sys.exit(f"update: {src} has no usable factory/manifest.json ({e}). Is it a Syntra checkout "
+                 "new enough to be updated this way?")
+    for key in ("managed", "adapted", "merge_json", "executable"):
+        if not isinstance(m.get(key), list) or not all(isinstance(x, str) for x in m[key]):
+            sys.exit(f"update: manifest key {key!r} must be a list of paths")
+    for rel in m["managed"] + m["adapted"] + m["merge_json"] + m["executable"]:
+        parts = Path(rel).parts
+        if Path(rel).is_absolute() or ".." in parts or rel.startswith(("factory/jobs", "factory/inbox",
+                                                                      "factory/records", "factory/usage/")):
+            sys.exit(f"update: manifest path {rel!r} is not allowed")
+    return m
+
+
+def load_state():
+    try:
+        s = json.loads(STATE.read_text(encoding="utf-8"))
+        if isinstance(s, dict):
+            s.setdefault("managed", {})
+            s.setdefault("adapted", {})
+            return s
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def unified(a, b, name_a, name_b):
+    return "".join(difflib.unified_diff(
+        norm(a).decode("utf-8", "replace").splitlines(True),
+        norm(b).decode("utf-8", "replace").splitlines(True), name_a, name_b))
+
+
+def merge_missing(local, upstream):
+    """Add keys the upstream dict has and local lacks, recursively. Local values always win."""
+    added = []
+
+    def walk(l, u, prefix):
+        for k, v in u.items():
+            if k not in l:
+                l[k] = v
+                added.append(prefix + k)
+            elif isinstance(l[k], dict) and isinstance(v, dict):
+                walk(l[k], v, prefix + k + ".")
+
+    walk(local, upstream, "")
+    return added
+
+
+def active_jobs():
+    out = []
+    for jf in sorted((ROOT / "factory" / "jobs").glob("*/job.json")):
+        try:
+            stage = json.loads(jf.read_text(encoding="utf-8")).get("stage")
+        except (OSError, ValueError):
+            continue
+        if stage not in TERMINAL:
+            out.append(f"{jf.parent.name} ({stage})")
+    return out
+
+
+def plan(src, manifest, state):
+    """Work out the action for every file. Returns a dict of lists plus the new baseline."""
+    base_m = (state or {}).get("managed", {})
+    base_a = (state or {}).get("adapted", {})
+    res = {k: [] for k in ("add", "update", "current", "modified", "missing", "adapted_new",
+                           "adapted_review", "adapted_same")}
+    new_m, new_a = dict(base_m), dict(base_a)
+
+    for rel in manifest["managed"]:
+        up = read(src / rel)
+        if up is None:
+            res["missing"].append(rel)
+            continue
+        local = read(ROOT / rel)
+        if local is None:
+            res["add"].append(rel)
+        elif digest(local) == digest(up):
+            res["current"].append(rel)
+            new_m[rel] = digest(up)
+        elif rel in base_m and digest(local) == base_m[rel]:
+            res["update"].append(rel)
+        else:
+            res["modified"].append(rel)
+
+    for rel in manifest["adapted"]:
+        up = read(src / rel)
+        if up is None:
+            res["missing"].append(rel)
+            continue
+        local = read(ROOT / rel)
+        if local is None:
+            res["adapted_new"].append(rel)
+        elif rel in base_a and base_a[rel] != digest(up):
+            res["adapted_review"].append(rel)
+        else:
+            # Unchanged upstream since the last update. With no baseline at all, every
+            # tailored file differs from the template, so there is nothing to diff yet.
+            res["adapted_same"].append(rel)
+        new_a[rel] = digest(up)  # the baseline moves up; the diff is shown once, this run
+    return res, new_m, new_a
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Update the installed Syntra factory.", add_help=True)
+    ap.add_argument("source", help="local Syntra checkout, or a git URL")
+    ap.add_argument("--apply", action="store_true", help="write the changes")
+    ap.add_argument("--force", action="store_true",
+                    help="overwrite edited managed files; update while jobs are running")
+    ap.add_argument("--adopt", action="store_true", help="record the baseline only")
+    args = ap.parse_args()
+
+    with tempfile.TemporaryDirectory(prefix="syntra-update-") as tmp:
+        src, shown = fetch_source(args.source, tmp)
+        if src.resolve() == ROOT.resolve():
+            sys.exit("update: the source is this project itself.")
+        manifest = load_manifest(src)
+        state = load_state()
+        commit = git(["rev-parse", "HEAD"], src)
+        old_commit = (state or {}).get("commit")
+
+        res, new_m, new_a = plan(src, manifest, state)
+
+        if args.adopt:
+            # Baseline = what is installed now, but only where it matches upstream; edited
+            # files get no baseline, so a later update treats them as edited.
+            for rel in manifest["managed"]:
+                up, local = read(src / rel), read(ROOT / rel)
+                if up is not None and local is not None and digest(up) == digest(local):
+                    new_m[rel] = digest(up)
+            for rel in manifest["adapted"]:
+                up = read(src / rel)
+                if up is not None:
+                    new_a[rel] = digest(up)
+            write_state(shown, commit, new_m, new_a)
+            print(f"update: recorded the baseline in {STATE.relative_to(ROOT)} (source commit "
+                  f"{(commit or 'unknown')[:10]}). No factory file was changed. Commit it.")
+            return
+
+        report(res, src, manifest, old_commit, commit)
+
+        added = []
+        merged_cfg = None
+        for rel in manifest["merge_json"]:
+            up, local = read(src / rel), read(ROOT / rel)
+            if up is None:
+                continue
+            if local is None:
+                res["add"].append(rel)
+                continue
+            try:
+                lj, uj = json.loads(local), json.loads(up)
+            except ValueError as e:
+                print(f"  ! {rel}: not valid JSON ({e}); left alone")
+                continue
+            keys = merge_missing(lj, uj)
+            if keys:
+                added.append((rel, keys))
+                merged_cfg = (rel, lj)
+        for rel, keys in added:
+            print(f"  config  {rel}: new keys {', '.join(keys)}")
+
+        jobs = active_jobs()
+        if jobs:
+            print(f"\nJobs still running or waiting: {', '.join(jobs)}")
+
+        if not args.apply:
+            changes = res["add"] + res["update"] + res["adapted_new"] + [a[0] for a in added]
+            print(f"\nDry run: {len(changes)} file(s) would change. Run again with --apply to write them.")
+            return
+        if jobs and not args.force:
+            sys.exit("update: finish or reject the jobs above first, or pass --force.")
+
+        todo = res["add"] + res["update"] + res["adapted_new"]
+        if args.force:
+            todo += res["modified"]
+        for rel in todo:
+            dest = ROOT / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes((src / rel).read_bytes())
+            if rel in manifest["managed"]:
+                new_m[rel] = digest((src / rel).read_bytes())
+        if merged_cfg:
+            rel, data = merged_cfg
+            (ROOT / rel).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        if os.name != "nt":
+            for rel in manifest["executable"]:
+                p = ROOT / rel
+                if p.exists():
+                    p.chmod(p.stat().st_mode | 0o111)
+        write_state(shown, commit, new_m, new_a)
+        skipped = [] if args.force else res["modified"]
+        print(f"\nUpdated {len(todo)} file(s)" + (f" and config.json" if merged_cfg else "") +
+              f"; skipped {len(skipped)} edited file(s); {len(res['adapted_review'])} adapted file(s) "
+              "need a manual look. Nothing was committed or pushed.")
+
+
+def write_state(source, commit, managed, adapted):
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    STATE.write_text(json.dumps({"source": source, "commit": commit,
+                                 "managed": dict(sorted(managed.items())),
+                                 "adapted": dict(sorted(adapted.items()))}, indent=2) + "\n",
+                     encoding="utf-8")
+
+
+def report(res, src, manifest, old_commit, commit):
+    print(f"Syntra source: {(commit or 'unknown')[:10]}" +
+          (f" (installed from {old_commit[:10]})" if old_commit else " (no baseline recorded yet)"))
+    labels = [("add", "add     "), ("update", "update  "), ("adapted_new", "add     "),
+              ("modified", "EDITED  "), ("missing", "no source")]
+    for key, label in labels:
+        for rel in res[key]:
+            note = {"modified": " (you changed it, or there is no baseline; skipped, --force overwrites)",
+                    "adapted_new": " (project-specific template; tailor it)",
+                    "missing": " (listed in the manifest but absent from the source)"}.get(key, "")
+            print(f"  {label} {rel}{note}")
+    print(f"  {len(res['current'])} managed file(s) already current")
+    if res["adapted_review"]:
+        print("\nUpstream changed these project-specific files; merge them by hand:")
+        for rel in res["adapted_review"]:
+            print(f"  review  {rel}")
+            if old_commit and commit and git(["cat-file", "-t", old_commit], src):
+                d = git(["diff", f"{old_commit}..{commit}", "--", rel], src)
+                if d:
+                    print("\n".join("    " + line for line in d.splitlines()))
+
+
+if __name__ == "__main__":
+    main()
