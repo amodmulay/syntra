@@ -70,7 +70,25 @@ flowchart TD
     K -- Approved --> L[Integration / Delivery]
     K -- Changes Required --> H
     L --> M[Documentation and Traceability]
+
+    subgraph FV ["Future vision - not implemented yet"]
+        direction TB
+        N[Build and Deploy]
+        O[Observe running deployments]
+        P[Incidents and findings become new requests]
+        N --> O --> P
+    end
+
+    L -.-> N
+    P -.-> A
+
+    classDef future stroke-dasharray: 5 5,stroke:#8b5cf6,color:#6d28d9
+    class N,O,P future
 ```
+
+Solid boxes describe what Syntra does today. The dashed **Future vision** group
+is the direction: carrying approved work through deployment, watching what runs
+in production, and feeding what is observed back in as new requests.
 
 The workflow is configurable. Different work types may use different agent roles, stages, review policies and quality gates.
 
@@ -158,6 +176,83 @@ Examples:
 
 Workflows should support conditional routing, parallel activities, retries, explicit hand-offs and human checkpoints.
 
+## Future Vision: One Factory per Project, One Dashboard for the Organisation
+
+> **Status: future vision.** Nothing in this section is implemented. Today each
+> project runs its own factory and its own local dashboard.
+
+The factory in a repository is the building block. The longer-term aim is to
+fold every project's factory into a single organisation-level view, and to
+extend the factory from building software to deploying and observing it.
+
+```mermaid
+flowchart TB
+    subgraph PROJ ["Projects - each with its own factory"]
+        direction LR
+        F1[Project A factory]
+        F2[Project B factory]
+        F3[Project C factory]
+    end
+
+    F1 --> FEED
+    F2 --> FEED
+    F3 --> FEED
+    FEED["Shared event and usage feed (jobs, verdicts, approvals, cost, time)"]
+
+    FEED --> GD
+
+    subgraph GD ["Global dashboard - future vision"]
+        direction TB
+        V1[All jobs across all projects]
+        V2[What is waiting on a human, and where]
+        V3["Cost, tokens and time per project, team and model"]
+        V4[Autonomy and human-intervention trends]
+        V5[Deployment and runtime health]
+    end
+
+    POL["Organisation policies (risk rules, approval boundaries, budgets, model routing)"] -.-> F1
+    POL -.-> F2
+    POL -.-> F3
+    GD -.-> POL
+
+    F1 -.-> DEP
+    F2 -.-> DEP
+    F3 -.-> DEP
+
+    subgraph OPS ["Build, deploy and observe - future vision"]
+        direction LR
+        DEP[Build and deploy to environments] --> RUN[Existing and new deployments]
+        RUN --> OBS["Observability: health, errors, incidents"]
+    end
+
+    OBS -.-> V5
+    OBS -.->|findings become requests| PROJ
+
+    classDef future stroke-dasharray: 5 5,stroke:#8b5cf6,color:#6d28d9
+    class FEED,V1,V2,V3,V4,V5,POL,DEP,RUN,OBS future
+```
+
+What this would add:
+
+- **A global dashboard.** One place to see everything happening across the
+  organisation's projects: which jobs are running, which are waiting on a person
+  and where, and how each project is doing.
+- **Organisation-wide traceability and cost.** The per-job record of work, model
+  usage, tokens, API-equivalent cost and elapsed time that each factory already
+  keeps today would roll up per project, team and model. It would also show how
+  often humans had to step in, and how much time the factory saved.
+- **Shared policy.** Risk rules, approval boundaries, budgets and model routing
+  set once for the organisation, with each project able to tighten them.
+- **Build, deploy and observe.** Extending the pipeline past merge: building and
+  deploying approved changes to existing and new environments, observing what
+  runs there, and turning incidents and findings into new requests for the
+  factory. High-impact actions such as production changes would keep explicit
+  human approval boundaries.
+
+The first step is making each factory's job, cost and time data easy to export
+in a stable shape, so a central dashboard can read it without changing how a
+project's factory works.
+
 ## Technology Direction
 
 Syntra is intended to remain technology- and model-agnostic where practical.
@@ -232,13 +327,18 @@ A job that merges on its final line also commits `factory/records/<job-id>.json`
 ### Update Syntra in a project
 
 For new work in the project, file or update an issue with the `factory` label
-and run `/factory run` again. To update the installed factory itself, compare
-the reusable files in the new Syntra version with the copies in the project.
-Copy the updated skills, agents, scripts (including `start-dashboard.sh`), dashboard, or playbooks as needed,
-then keep the target project's `factory/config.json`, `factory/checks.sh`,
-playbooks, and repository instructions aligned with its own codebase. Review
-the diff and run the target project's documented checks before using the
-updated factory. `INSTALL.md` contains the file list and adaptation details.
+and run `/factory run` again. To update the installed factory itself, run `/factory-update <path-or-url-of-syntra>`
+in Claude Code from the project. It runs `factory/bin/update`, which
+replaces the generic files (scripts, skills, dashboard, generic agents) with the
+new version, never overwrites project-specific files (`factory/checks.sh`, the
+playbooks, the triage and reviewer agents) and only adds new keys to
+`factory/config.json`. Generic files you edited are skipped and listed, and
+changes upstream made to your tailored files are shown as a diff to merge by
+hand. `python3 factory/bin/update <source>` alone is a dry run that writes
+nothing; add `--apply` to write. Which files fall in which group is defined by
+`factory/manifest.json`; `factory/.installed.json` records what was installed.
+`INSTALL.md` has the details, including how to adopt this on an install that
+predates it.
 
 Syntra can also update its own factory from issues labeled `factory`. The
 deterministic `factory/checks.sh` remains protected from factory jobs; updates
@@ -264,6 +364,7 @@ Planned development themes:
 5. Introduce a workspace for managing projects and observing execution.
 6. Expand integrations, reusable skills and workflow templates.
 7. Strengthen security, permissions, auditability and deployment options.
+8. Future vision: an organisation-level dashboard across projects, plus build, deploy and observe stages.
 
 Features will be marked as implemented only when they are available and verified in the codebase.
 

@@ -30,6 +30,7 @@ Stop and tell the user if any of these aren't true:
 ```
 .claude/skills/factory/SKILL.md
 .claude/skills/factory-commit/SKILL.md
+.claude/skills/factory-update/SKILL.md
 .claude/agents/triage.md
 .claude/agents/spec-writer.md
 .claude/agents/builder.md
@@ -45,6 +46,8 @@ factory/bin/gate
 factory/bin/route
 factory/bin/pull
 factory/bin/dashboard
+factory/bin/usage
+factory/bin/update
 start-dashboard.sh
 factory/dashboard.html
 factory/playbooks/_global.md
@@ -58,9 +61,18 @@ edits. If the target already has a file with that name, ask the user before
 overwriting it.
 
 ```bash
-chmod +x factory/checks.sh factory/bin/job factory/bin/gate factory/bin/route factory/bin/pull factory/bin/dashboard start-dashboard.sh
+chmod +x factory/checks.sh factory/bin/job factory/bin/gate factory/bin/route factory/bin/pull factory/bin/dashboard factory/bin/usage factory/bin/update start-dashboard.sh
 mkdir -p factory/inbox
 ```
+
+Record the baseline that later updates compare against (it changes no factory
+file). `<source>` is the same path or URL you copied from:
+
+```bash
+python3 factory/bin/update <source> --adopt
+```
+
+This writes `factory/.installed.json`, which is committed with the install.
 
 Leave this factory's own `README.md`, `DESIGN.md`, `INSTALL.md` and `LICENSE`
 (if any) behind — they describe this reference, not the project you're
@@ -210,3 +222,14 @@ Then tell them, briefly:
   than plan-included usage.
 - Start with `concurrency: 1` in `factory/config.json` and read what a few
   jobs actually produce before raising it.
+
+## Updating an installed factory later
+
+When the source Syntra has changed, the user runs `/factory-update <source>` in
+Claude Code (or, by hand, `python3 factory/bin/update <source>` for a dry run,
+then `--apply`). The script replaces generic files, never touches project-
+tailored ones (`factory/checks.sh`, the playbooks, the triage and reviewer
+agents), skips generic files the user edited, and only adds new keys to
+`factory/config.json`. `factory/manifest.json` in the source defines which files
+fall in which group. The skill walks through merging upstream changes to the
+tailored files and re-runs the step 3 checks.
