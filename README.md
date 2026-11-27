@@ -53,7 +53,7 @@ These are intended capability areas. Not all capabilities are available today.
 
 At a high level, a request moves through a coordinated workflow:
 
-\`\`\`mermaid
+```mermaid
 flowchart TD
     A[Request / Requirement / Issue] --> B[Intake and Triage]
     B --> C{Accepted?}
@@ -70,7 +70,7 @@ flowchart TD
     K -- Approved --> L[Integration / Delivery]
     K -- Changes Required --> H
     L --> M[Documentation and Traceability]
-\`\`\`
+```
 
 The workflow is configurable. Different work types may use different agent roles, stages, review policies and quality gates.
 
