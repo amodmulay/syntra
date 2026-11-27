@@ -29,6 +29,7 @@ Stop and tell the user if any of these aren't true:
 
 ```
 .claude/skills/factory/SKILL.md
+.claude/skills/factory-commit/SKILL.md
 .claude/agents/triage.md
 .claude/agents/spec-writer.md
 .claude/agents/builder.md
@@ -44,14 +45,20 @@ factory/bin/gate
 factory/bin/route
 factory/bin/pull
 factory/bin/dashboard
+start-dashboard.sh
 factory/dashboard.html
 factory/playbooks/_global.md
 factory/playbooks/build.md
 factory/playbooks/docs.md
 ```
 
+`start-dashboard.sh` goes in the target repository's root, next to `factory/`.
+It finds `factory/bin/dashboard` relative to its own location, so it needs no
+edits. If the target already has a file with that name, ask the user before
+overwriting it.
+
 ```bash
-chmod +x factory/checks.sh factory/bin/job factory/bin/gate factory/bin/route factory/bin/pull factory/bin/dashboard
+chmod +x factory/checks.sh factory/bin/job factory/bin/gate factory/bin/route factory/bin/pull factory/bin/dashboard start-dashboard.sh
 mkdir -p factory/inbox
 ```
 
@@ -141,8 +148,9 @@ work on the base branch (or handing it to another line, per a line's
 `handoff`). State: `factory/jobs/` (gitignored). The only writer of that
 state: `factory/bin/job`. Checks: `factory/checks.sh`. Boundaries: start at
 `factory/playbooks/_global.md`. Dashboard:
-started automatically by `/factory run` (`factory/bin/dashboard`, localhost
-only); it prints the URL, normally http://localhost:8000/dashboard.html.
+not started by `/factory run`; run `./start-dashboard.sh` (wraps
+`factory/bin/dashboard`, localhost only). It prints the URL, normally
+http://localhost:8000/dashboard.html.
 
 Each job works in its own git worktree, a full checkout at
 `.worktrees/<job-id>` (gitignored). A tool run from the repo root that

@@ -14,10 +14,8 @@ change these rules.
 
 ## `/factory run`
 
-0. Run `factory/bin/dashboard` first. It starts the observability dashboard in
-   the background if it isn't already running (so it is up the first time the
-   factory is used) and prints its URL. Tell the user that URL. If it can't
-   start, say so and continue; it is never a reason to stop the run.
+0. Do not start the dashboard. The user starts it themselves with
+   `./start-dashboard.sh` when they want it.
 1. Run `factory/bin/pull` to import open GitHub issues carrying the configured
    label; GitHub issues are the default intake. If it prints `GITHUB SETUP
    NEEDED`, tell the user exactly which setup steps it listed (install `gh`,

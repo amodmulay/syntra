@@ -237,15 +237,15 @@ GitHub call.
 
 **Dashboard** (a board with a column per stage, live every 2 seconds):
 
-It starts by itself the first time you run `/factory run`, keeps running in
-the background, and the run prints its address, normally
+The factory does not start it for you. Start it when you want it; it keeps
+running in the background and prints its address, normally
 <http://localhost:8000/dashboard.html>. It only listens on your own machine.
 If port 8000 is taken it uses the next free one (the printed URL is the
 truth), and `dashboard.port` in `factory/config.json` changes where it
-starts looking. To start it yourself, or to find the address again:
+starts looking. To start it, or to find the address again:
 
 ```
-python3 factory/bin/dashboard
+./start-dashboard.sh
 ```
 
 Each local job card shows the verdict of

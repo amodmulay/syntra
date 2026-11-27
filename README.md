@@ -181,7 +181,8 @@ The direction is to grow this repository-level workflow into a reusable system f
 
 The current repository is also Syntra's integration sample: a small calculator
 module exercises intake, isolated worktrees, checks, review, approval, and the
-documentation handoff. The `/factory` skill and role agents live under
+documentation handoff. The `/factory` skill, the `/factory-commit` skill (safe
+Git commits for work outside a job) and role agents live under
 `.claude/`; `INSTALL.md` describes adapting the reusable factory to another
 repository. Open GitHub issues labeled `factory` are pulled into
 `factory/inbox/` when `/factory run` starts. Runs are manual and local, so an
@@ -213,9 +214,8 @@ Git ignore entries and the `factory` GitHub label needed for issue intake.
    labeled issues into the inbox, then processes available topics through
    triage, specification, implementation, checks, review, and approval.
 3. Review job evidence in `factory/jobs/<job-id>/`. The dashboard
-   starts automatically with `/factory run` and the run prints its URL
-   (normally `http://localhost:8000/dashboard.html`); to start it by hand run
-   `python3 factory/bin/dashboard`.
+   is not started automatically; run `./start-dashboard.sh` and it prints its
+   URL (normally `http://localhost:8000/dashboard.html`).
 
 Runs are manual; creating an issue does not start an agent session. Jobs work
 in separate `.worktrees/<job-id>` checkouts and land approved changes on the
@@ -234,7 +234,7 @@ A job that merges on its final line also commits `factory/records/<job-id>.json`
 For new work in the project, file or update an issue with the `factory` label
 and run `/factory run` again. To update the installed factory itself, compare
 the reusable files in the new Syntra version with the copies in the project.
-Copy the updated skills, agents, scripts, dashboard, or playbooks as needed,
+Copy the updated skills, agents, scripts (including `start-dashboard.sh`), dashboard, or playbooks as needed,
 then keep the target project's `factory/config.json`, `factory/checks.sh`,
 playbooks, and repository instructions aligned with its own codebase. Review
 the diff and run the target project's documented checks before using the

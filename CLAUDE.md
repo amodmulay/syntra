@@ -40,9 +40,9 @@ landing approved work on the base branch or handing it to another line
 - Linked GitHub issues: a final merge closes the issue with a comment and adds `factory-done`; a reject adds `factory-rejected` and posts the operator's reason as a public comment. Best-effort `gh` calls; see AGENTS.md.
 - Checks: `factory/checks.sh`.
 - Boundaries: `factory/playbooks/_global.md` and one per line.
-- Dashboard: `/factory run` starts it automatically (`factory/bin/dashboard`,
-  localhost only, port from `dashboard.port` in `factory/config.json`) and
-  prints the URL; run `python3 factory/bin/dashboard` to start it by hand.
+- Dashboard: not started automatically. Run `./start-dashboard.sh` (wraps
+  `factory/bin/dashboard`; localhost only, port from `dashboard.port` in
+  `factory/config.json`); it prints the URL.
 
 Full detail lives in [AGENTS.md](AGENTS.md) (the file every factory agent
 reads first — keep the two in sync if either changes), with the complete
